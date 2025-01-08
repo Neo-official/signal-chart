@@ -14,7 +14,7 @@ export default function Page() {
 	let settings = settingsRef.current
 	const [update, setUpdate] = useState(true);
 	// const [dataSize, setDataSize] = useState(10);
-	const addDataRef = useRef<HTMLInputElement>(null);
+	const addDataRef = useRef<HTMLInputElement | null>(null);
 	// const setDataSizeRef = useRef<HTMLInputElement>(null);
 	const timeStepRef = useRef({value: 1000});
 
@@ -114,7 +114,7 @@ export default function Page() {
 						label="Data"
 						// defaultValue={Math.random() * scale}
 						// placeholder='Enter Data ...'
-						endContent={<Button color="primary" onClick={addData}>Add</Button>}
+						endContent={<Button color="primary" onPress={addData}>Add</Button>}
 					/>
 					{/*<Input*/}
 					{/*	className="py-2"*/}
@@ -140,8 +140,8 @@ export default function Page() {
 					<div className="justify-between flex flex-grow gap-2 items-center">
 						<span className="text-default-300">Auto add data</span>
 						<div className="flex gap-2">
-							<Button onClick={autoAddOff}>off</Button>
-							<Button color="primary" onClick={autoAddOn}>on</Button>
+							<Button onPress={autoAddOff}>off</Button>
+							<Button color="primary" onPress={autoAddOn}>on</Button>
 						</div>
 					</div>
 				</CardFooter>

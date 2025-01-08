@@ -38,3 +38,6 @@ sqlite.db
 sqlite.db-journal
 /drizzle/
 /data/
+
+.vercel
+/bun.lockb

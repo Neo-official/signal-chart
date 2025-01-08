@@ -15,7 +15,7 @@ type DeviceProps = {
 function Device({device}: DeviceProps) {
 	const socket = useSocket();
 	const {scale, state, data, labels} = device;
-	const scaleRef = useRef<HTMLInputElement>(null);
+	const scaleRef = useRef<HTMLInputElement | null>(null);
 
 	function changeScale() {
 		const scale = scaleRef.current?.valueAsNumber ?? 0;
@@ -73,7 +73,7 @@ function Device({device}: DeviceProps) {
 					label="Scale"
 					defaultValue={`${scale}`}
 					endContent={
-						<Button color="primary" onClick={changeScale}>
+						<Button color="primary" onPress={changeScale}>
 							Change
 						</Button>
 					}
@@ -88,7 +88,7 @@ function Dashboard() {
 	const [mounted, setMounted] = useState<boolean>(false)
 	const [devices, setDevices] = useState<DeviceType[]>([]);
 	const SettingsRef = useRef<Settings>({maxDataPoints: 0});
-	const maxDataPointsRef = useRef<HTMLInputElement>(null);
+	const maxDataPointsRef = useRef<HTMLInputElement | null>(null);
 
 	function changeMaxDataPoints(event: React.ChangeEvent<HTMLInputElement>) {
 		let maxDataPoints = Number(event.target.value ?? 0);
@@ -142,7 +142,7 @@ function Dashboard() {
 					value={`${SettingsRef.current.maxDataPoints}`}
 					onChange={changeMaxDataPoints}
 					endContent={
-						<Button color="primary" onClick={submitMaxDataPoints}>
+						<Button color="primary" onPress={submitMaxDataPoints}>
 							Change
 						</Button>
 					}/>
@@ -151,7 +151,7 @@ function Dashboard() {
 			<div className="flex flex-col gap-4 justify-between items-center w-full">
 				<div className="flex justify-between items-center w-full">
 					<span className="text-large">Devices</span>
-					<Button color="primary" onClick={() => socket?.emit('admin:devices')}>
+					<Button color="primary" onPress={() => socket?.emit('admin:devices')}>
 						Refresh
 					</Button>
 				</div>

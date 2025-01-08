@@ -10,7 +10,7 @@ type DeviceProps = {
 }
 
 function Device({device}: DeviceProps) {
-	const {scale, data, labels} = device;
+	const {data, labels} = device;
 	return (
 		<Card className="border-none w-full h-auto col-span-12 sm:col-span-5">
 			<CardBody className="overflow-visible p-3 py-4">
@@ -61,7 +61,7 @@ export default function Home() {
 				<section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
 					<div className="flex justify-between items-center w-full">
 						<span className="text-large">Devices</span>
-						<Button color="primary" onClick={() => socket?.emit('devices')}>
+						<Button color="primary" onPress={() => socket?.emit('devices')}>
 							Refresh
 						</Button>
 					</div>
