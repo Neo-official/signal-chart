@@ -1,7 +1,7 @@
 import { SVGProps } from "react";
 
 export type IconSvgProps = SVGProps<SVGSVGElement> & {
-  size?: number;
+	size?: number;
 };
 // export default function AdminPage() {
 //   const router = useRouter();
@@ -55,7 +55,7 @@ export type DeviceType = {
 	id: string
 	state: 'ban' | 'pending' | 'active'
 	scale: number
-	data: number[]
+	data: [number, number][]
 	labels: number[]
 };
 

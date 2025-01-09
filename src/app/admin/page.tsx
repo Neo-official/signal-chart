@@ -70,7 +70,7 @@ function Device({device}: DeviceProps) {
 				<Input
 					ref={scaleRef}
 					type="number"
-					label="Scale"
+					label="V-out"
 					defaultValue={`${scale}`}
 					endContent={
 						<Button color="primary" onPress={changeScale}>
@@ -223,6 +223,7 @@ function Dashboard() {
 
 export default function AdminPage() {
 	const router = useRouter();
+	// noinspection JSUnusedLocalSymbols
 	const [isAuthorized, setIsAuthorized] = useState(true);
 
 	useEffect(() => {

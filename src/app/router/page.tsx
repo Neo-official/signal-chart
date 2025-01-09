@@ -48,14 +48,15 @@ export default function Page() {
 			s = Math.random() * settings.scale
 			const number = Math.max(0, Math.floor(s))
 			s = number;
-			socket?.emit('data:add', number as any);
+			const t = Math.floor(Math.random() * 10)
+			socket?.emit('data:add', [number, t] as any);
 		}
 
 		//////////
 
 		return () => {
 			socket?.off('device:scale');
-			socket?.off('user');
+			// socket?.off('user');
 
 			if (!settings.pause)
 				autoAddOff()
@@ -71,8 +72,9 @@ export default function Page() {
 
 	function addData() {
 		setUpdate(x => !x)
-		const number: any = addDataRef.current?.valueAsNumber || Math.random() * settings.scale
-		socket?.emit('data:add', number);
+		const number = addDataRef.current?.valueAsNumber || Math.random() * settings.scale
+		const t = Math.floor(Math.random() * 10)
+		socket?.emit('data:add', [number, t] as any);
 	}
 
 	// function changeDataSize() {
@@ -102,7 +104,7 @@ export default function Page() {
 				</CardHeader>
 				<CardBody className="overflow-visible py-2">
 					<div className="p-1 pb-2">
-						<h4 className="text-white/90 font-medium text-gl">Scale: {settings.scale}</h4>
+						<h4 className="text-white/90 font-medium text-gl">V-out: {settings.scale}</h4>
 						<h4 className="text-white/90 font-medium text-gl">Data Size: {settings.dataSize}</h4>
 						<h4 className="text-white/90 font-medium text-gl">Pause: {settings.pause ? 'true' : 'false'}</h4>
 					</div>

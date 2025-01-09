@@ -5,6 +5,8 @@ import { useTheme } from "next-themes";
 // import CanvasJSReact from '@canvasjs/react-stockcharts';
 import { Switch } from "@nextui-org/switch";
 import dynamic from "next/dynamic";
+import { DeviceType } from "@/types";
+
 const CanvasJSChart = dynamic(
 	() => import('@canvasjs/react-stockcharts').then(
 		(module) => module.default.CanvasJSStockChart,
@@ -17,7 +19,7 @@ type LineChartProps = {
 	title: string;
 	label: string;
 	labels: string[];
-	data: number[];
+	data: DeviceType['data'];
 };
 
 const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], data = []}: LineChartProps) => {
@@ -52,13 +54,56 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 			shared: true,
 		},
 		charts       : [{
+			toolTip: {
+				shared: true,
+			},
+			axisX  : {
+				crosshair: {
+					enabled: true,
+				},
+			},
+			// axisY: {
+			// 	// prefix: "",
+			// 	// suffix: "",
+			// 	// title: "V-out",
+			// 	// titleFontSize: 14
+			// },
 			data: [{
-				type      : "splineArea",
-				color     : "#3698C5",
-				name      : label,
-				dataPoints: labels.map((label, index) => ({
+				type              : "splineArea",
+				color             : "#3698C5",
+				name              : label,
+				xValueFormatString: "MMM YYYY",
+				yValueFormatString: "### V",
+				dataPoints        : labels.map((label, index) => ({
 					x: new Date(label), // Assuming labels are date strings
-					y: data[index],
+					y: data[index]?.[0],
+				})),
+			}],
+		}, {
+			height: 100,
+			toolTip: {
+				shared: true,
+			},
+			axisX  : {
+				crosshair: {
+					enabled: true,
+				},
+			},
+			// axisY: {
+			// 	// prefix: "",
+			// 	// suffix: "",
+			// 	// title: "V-out",
+			// 	// titleFontSize: 14
+			// },
+			data: [{
+				type              : "splineArea",
+				color             : "#c53657",
+				name              : label,
+				xValueFormatString: "MMM YYYY",
+				yValueFormatString: "### V",
+				dataPoints        : labels.map((label, index) => ({
+					x: new Date(label), // Assuming labels are date strings
+					y: data[index]?.[1],
 				})),
 			}],
 		}],
