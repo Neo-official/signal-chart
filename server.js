@@ -8,6 +8,11 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({dev});
 const handle = app.getRequestHandler();
 
+const DEFAULT_SETTING = {
+	maxDataPoints: 31557600, // 31557600 seconds - save data for 1 year
+	maxDataSend: 300 // 300 seconds - send last 5 minute of data
+};
+
 const dataDir = './data';
 const saveDataTimer = process.env.SAVE_DATA_TIMER || 1000 * 60 * 5; // 5 min
 
@@ -37,7 +42,7 @@ const data = {
 			fs.mkdirSync(dataDir);
 
 		if (!fs.existsSync(`${dataDir}/settings.json`)) {
-			const settings = {maxDataPoints: 31557600};
+			const settings = DEFAULT_SETTING;
 			fs.writeFileSync(`${dataDir}/settings.json`, JSON.stringify(settings));
 			return settings;
 		}
@@ -45,7 +50,7 @@ const data = {
 		try {
 			const settings = JSON.parse(fs.readFileSync(`${dataDir}/settings.json`, 'utf8'));
 
-			return settings;
+			return {...DEFAULT_SETTING, ...settings};
 		} catch (e) {
 			console.log(e);
 		}
@@ -58,11 +63,19 @@ const data = {
 const db = {
 	settings: data.settings(),
 	devices: data.devices(),
+	get _devices() {
+		return Object.values(this.devices)
+			.map(device => ({
+				...device,
+				data: device.data.slice(-this.settings.maxDataSend),
+				labels: device.labels.slice(-this.settings.maxDataSend)
+			}));
+	},
 	get userDevices() {
-		return Object.values(this.devices).filter(d => d.state === 'active');
+		return this._devices.filter(d => d.state === 'active');
 	},
 	get adminDevices() {
-		return Object.values(this.devices);
+		return this._devices;
 	}
 };
 
@@ -87,11 +100,14 @@ app.prepare().then(() => {
 		socket.emit('admin:devices', db.adminDevices);
 		socket.emit('admin:settings', db.settings);
 
-		socket.on('_connect', () => {
-			console.log('User connected');
-			socket.emit('devices', db.userDevices);
-			socket.emit('admin:devices', db.adminDevices);
-			socket.emit('admin:settings', db.settings);
+		socket.on('_connect', (isAdmin = false) => {
+			console.log('User connected', isAdmin);
+			if (isAdmin) {
+				socket.emit('admin:devices', db.adminDevices);
+				socket.emit('admin:settings', db.settings);
+			} else {
+				socket.emit('devices', db.userDevices);
+			}
 		});
 
 		socket.on('devices', () => {
@@ -118,13 +134,14 @@ app.prepare().then(() => {
 		socket.on('device:state', (device) => {
 			console.log('device:state', device.state);
 			db.devices[device.socketId].state = device.state;
-			io.emit('admin:devices', db.adminDevices);
 			io.emit('devices', db.userDevices);
+			io.emit('admin:devices', db.adminDevices);
 		});
 
 		socket.on('admin:settings', (settings) => {
 			console.log('admin:settings', settings);
 			db.settings.maxDataPoints = settings.maxDataPoints;
+			db.settings.maxDataSend = settings.maxDataSend;
 			io.emit('admin:settings', db.settings);
 
 			for (const device of Object.values(db.devices)) {

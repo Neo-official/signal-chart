@@ -83,12 +83,13 @@ function Device({device}: DeviceProps) {
 	)
 }
 
-function Dashboard() {
-	const socket = useSocket();
-	const [mounted, setMounted] = useState<boolean>(false)
-	const [devices, setDevices] = useState<DeviceType[]>([]);
-	const SettingsRef = useRef<Settings>({maxDataPoints: 0});
-	const maxDataPointsRef = useRef<HTMLInputElement | null>(null);
+type PropSettings = {
+	SettingsRef: React.RefObject<Settings>
+	onSubmit: () => void
+}
+
+function Settings({SettingsRef, onSubmit}: PropSettings) {
+	const [update, setUpdate] = useState(false);
 
 	function changeMaxDataPoints(event: React.ChangeEvent<HTMLInputElement>) {
 		let maxDataPoints = Number(event.target.value ?? 0);
@@ -98,24 +99,88 @@ function Dashboard() {
 		// 	maxDataPointsRef.current.value = maxDataPoints as string;
 	}
 
-	function submitMaxDataPoints() {
+	function changeMaxDataSend(event: React.ChangeEvent<HTMLInputElement>) {
+		let maxDataSend = Number(event.target.value ?? 0);
+		maxDataSend = Math.max(0, Math.min(maxDataSend, 2 ** 32 - 1));
+		SettingsRef.current.maxDataSend = maxDataSend;
+		// if (maxDataSendRef.current)
+		// 	maxDataSendRef.current.value = maxDataSend as string;
+	}
+
+	useEffect(() => {
+
+	}, [update])
+
+	return (
+		<Card className="border-none w-full h-auto col-span-12 sm:col-span-5">
+			<CardHeader className="justify-between">
+				<div className="flex gap-3">
+					<div className="flex flex-col gap-1 items-start justify-center">
+						<h4 className="text-large font-semibold leading-none text-default-600">Settings</h4>
+					</div>
+				</div>
+			</CardHeader>
+			<CardBody className="overflow-visible p-3 py-4">
+				<div>
+					<Input
+						type="number"
+						min={0}
+						max={4294967295}
+						label={`Max Data Storage (${SettingsRef.current.maxDataPoints} bytes)`}
+						placeholder={`current is (${SettingsRef.current.maxDataPoints})`}
+						description="Maximum Value is 4294967295 (4 GB) for each Device"
+						onChange={changeMaxDataPoints}
+					/>
+					<Input
+						type="number"
+						min={0}
+						label={`Max Data Length (${SettingsRef.current.maxDataSend} points)`}
+						placeholder={`current is (${SettingsRef.current.maxDataSend})`}
+						description="0 = Receive all of data, default = 300 (5 minutes)"
+						onChange={changeMaxDataSend}
+					/>
+				</div>
+			</CardBody>
+			<CardFooter
+				className="justify-between before:bg-white/10 border-white/20 border-1 overflow-hidden py-4 before:rounded-xl rounded-large w-[calc(100%_-_8px)] shadow-small ml-1">
+				<Button color="primary" onPress={() => {
+					setUpdate(!update);
+					onSubmit?.();
+				}}>Apply Settings</Button>
+			</CardFooter>
+		</Card>
+	)
+}
+
+function Dashboard() {
+	const socket = useSocket();
+	const [mounted, setMounted] = useState<boolean>(false)
+	const [devices, setDevices] = useState<DeviceType[]>([]);
+	const SettingsRef = useRef<Settings>({maxDataPoints: 0, maxDataSend: 0});
+
+	// const settings = SettingsRef.current;
+
+	function submitSettings() {
 		socket?.emit('admin:settings', SettingsRef.current as any);
 	}
 
 
 	useEffect(() => {
 		setMounted(() => true)
-		if (!socket) return;
+		if (!(socket && mounted)) return;
 
-		socket.emit('_connect');
+		socket.emit('_connect', true);
 
 		socket.on('admin:settings', (data) => {
-			// console.log('admin:settings:', data);
+			console.log('admin:settings:', data);
 			// setDevices(Object.values(data?.devices ?? {}));
 			SettingsRef.current = data;
 			// if (maxDataPointsRef.current)
-			// 	maxDataPointsRef.current.value = SettingsRef.current.maxDataPoints as string;
-			// console.log(maxDataPointsRef.current.value, SettingsRef.current.maxDataPoints)
+			// 	maxDataPointsRef.current.value = data.maxDataPoints;
+			// console.log(maxDataPointsRef.current, SettingsRef.current.maxDataPoints)
+			//
+			// if (maxDataSendRef.current)
+			// 	maxDataSendRef.current.value = data.maxDataSend;
 
 		});
 
@@ -130,23 +195,16 @@ function Dashboard() {
 		};
 	}, [socket, mounted])
 
+	if (!mounted)
+		return (
+			<div className="flex justify-center items-center h-screen">
+				<div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+			</div>
+		);
+
 	return (
 		<div className="max-w-xl2 w-full">
-			<span className="text-large">Settings</span>
-			<div className="mt-4">
-				<Input
-					ref={maxDataPointsRef}
-					type="number"
-					label="Max Data Size (bytes)"
-					description="Maximum Value is 4294967295 (4 GB) for each Device"
-					value={`${SettingsRef.current.maxDataPoints}`}
-					onChange={changeMaxDataPoints}
-					endContent={
-						<Button color="primary" onPress={submitMaxDataPoints}>
-							Change
-						</Button>
-					}/>
-			</div>
+			<Settings SettingsRef={SettingsRef} onSubmit={submitSettings}/>
 			<br/>
 			<div className="flex flex-col gap-4 justify-between items-center w-full">
 				<div className="flex justify-between items-center w-full">
@@ -165,13 +223,13 @@ function Dashboard() {
 
 export default function AdminPage() {
 	const router = useRouter();
-	const [isAuthorized, setIsAuthorized] = useState(false);
+	const [isAuthorized, setIsAuthorized] = useState(true);
 
 	useEffect(() => {
-		if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-			const token = localStorage.getItem('authToken');
-			setIsAuthorized(!!token)
-		}
+		// if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+		// 	const token = localStorage.getItem('authToken');
+		// 	setIsAuthorized(!!token)
+		// }
 	}, [router]);
 
 	return (

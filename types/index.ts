@@ -48,7 +48,9 @@ export type IconSvgProps = SVGProps<SVGSVGElement> & {
 // }
 export type Settings = {
 	maxDataPoints: number
+	maxDataSend: number
 }
+
 export type DeviceType = {
 	id: string
 	state: 'ban' | 'pending' | 'active'
