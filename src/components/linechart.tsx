@@ -73,7 +73,7 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 				color             : "#3698C5",
 				name              : label,
 				xValueFormatString: "MMM YYYY",
-				yValueFormatString: "### V",
+				yValueFormatString: "### kV",
 				dataPoints        : labels.map((label, index) => ({
 					x: new Date(label), // Assuming labels are date strings
 					y: data[index]?.[0],
@@ -100,7 +100,7 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 				color             : "#c53657",
 				name              : label,
 				xValueFormatString: "MMM YYYY",
-				yValueFormatString: "### V",
+				yValueFormatString: "### mA",
 				dataPoints        : labels.map((label, index) => ({
 					x: new Date(label), // Assuming labels are date strings
 					y: data[index]?.[1],
