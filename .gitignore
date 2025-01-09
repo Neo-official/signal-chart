@@ -41,3 +41,4 @@ sqlite.db-journal
 
 .idea
 /bun.lockb
+/signal-chart*.*
