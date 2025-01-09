@@ -39,5 +39,5 @@ sqlite.db-journal
 /drizzle/
 /data/
 
-.vercel
+.idea
 /bun.lockb
