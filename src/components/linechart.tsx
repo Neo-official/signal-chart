@@ -161,9 +161,9 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 					rangeType: "all",
 				},
 			],
-			inputFields: {
-				enabled: false,
-			},
+			// inputFields: {
+			// 	enabled: false,
+			// },
 		},
 	};
 
