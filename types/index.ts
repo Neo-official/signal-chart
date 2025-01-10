@@ -54,7 +54,7 @@ export type Settings = {
 export type DeviceType = {
 	id: string
 	state: 'ban' | 'pending' | 'active'
-	scale: number
+	v_out: number
 	data: [number, number][]
 	labels: number[]
 };

@@ -13,15 +13,15 @@ type DeviceProps = {
 }
 
 function Device({device}: DeviceProps) {
-	const socket = useSocket();
-	const {scale, state, data, labels} = device;
+	const socket = useSocket('/admin');
+	const {v_out, state, data, labels} = device;
 	const scaleRef = useRef<HTMLInputElement | null>(null);
 
 	function changeScale() {
-		const scale = scaleRef.current?.valueAsNumber ?? 0;
-		device.scale = scale;
-		console.log("scale: ", scale);
-		socket?.emit('device:scale', device as any);
+		const v_out = scaleRef.current?.valueAsNumber ?? 0;
+		device.v_out = v_out;
+		console.log("V-out: ", v_out);
+		socket?.emit('device:V-out', device as any);
 	}
 
 	function changeState(value: string) {
@@ -71,7 +71,7 @@ function Device({device}: DeviceProps) {
 					ref={scaleRef}
 					type="number"
 					label="V-out"
-					defaultValue={`${scale}`}
+					defaultValue={`${v_out}`}
 					endContent={
 						<Button color="primary" onPress={changeScale}>
 							Change
@@ -153,7 +153,7 @@ function Settings({SettingsRef, onSubmit}: PropSettings) {
 }
 
 function Dashboard() {
-	const socket = useSocket();
+	const socket = useSocket('/admin');
 	const [mounted, setMounted] = useState<boolean>(false)
 	const [devices, setDevices] = useState<DeviceType[]>([]);
 	const SettingsRef = useRef<Settings>({maxDataPoints: 0, maxDataSend: 0});
@@ -161,7 +161,7 @@ function Dashboard() {
 	// const settings = SettingsRef.current;
 
 	function submitSettings() {
-		socket?.emit('admin:settings', SettingsRef.current as any);
+		socket?.emit('settings', SettingsRef.current as any);
 	}
 
 
@@ -169,9 +169,9 @@ function Dashboard() {
 		setMounted(() => true)
 		if (!(socket && mounted)) return;
 
-		socket.emit('_connect', true);
+		socket.emit('_connect');
 
-		socket.on('admin:settings', (data) => {
+		socket.on('settings', (data) => {
 			console.log('admin:settings:', data);
 			// setDevices(Object.values(data?.devices ?? {}));
 			SettingsRef.current = data;
@@ -184,14 +184,14 @@ function Dashboard() {
 
 		});
 
-		socket.on('admin:devices', (data) => {
+		socket.on('devices', (data) => {
 			// console.log('admin:devices:', data);
 			setDevices(data);
 		});
 
 		return () => {
-			socket.off('admin:settings');
-			socket.off('admin:devices');
+			socket.off('settings');
+			socket.off('devices');
 		};
 	}, [socket, mounted])
 

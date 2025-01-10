@@ -33,7 +33,7 @@ function Device({device}: DeviceProps) {
 }
 
 export default function Home() {
-	const socket = useSocket();
+	const socket = useSocket('/user');
 	const [mounted, setMounted] = useState<boolean>(false)
 	const [devices, setDevices] = useState<DeviceType[]>([]);
 

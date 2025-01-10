@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { useEffect, useRef } from 'react';
 
-export function useSocket() {
+export function useSocket(namespace: string = '/user') {
 	const socketRef = useRef<Socket | null>(null);
 
 	useEffect(() => {
@@ -12,7 +12,7 @@ export function useSocket() {
 		// }
 
 		if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-			socketRef.current = io('', {
+			socketRef.current = io(namespace, {
 				// auth                : {
 				// 	token,
 				// },
