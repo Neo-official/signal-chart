@@ -71,7 +71,7 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 			data: [{
 				type              : "splineArea",
 				color             : "#3698C5",
-				name              : label,
+				name              : 'V-out',
 				xValueFormatString: "MMM YYYY",
 				yValueFormatString: "### kV",
 				dataPoints        : labels.map((label, index) => ({
@@ -98,7 +98,7 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 			data: [{
 				type              : "splineArea",
 				color             : "#c53657",
-				name              : label,
+				name              : 'Amp',
 				xValueFormatString: "MMM YYYY",
 				yValueFormatString: "### mA",
 				dataPoints        : labels.map((label, index) => ({
@@ -181,7 +181,8 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 					setCurrentData(event.target.checked)
 				}}
 			>
-				go to current data
+				{/*go to current data*/}
+				Real-time data
 			</Switch>
 			{/*{typeof window !== 'undefined' && typeof document !== 'undefined' &&(*/}
 			{/*	<CanvasJSChart options={options}/>*/}

@@ -12,8 +12,12 @@ const DEFAULT_SETTING = {
 	maxDataPoints: 31557600, // 31557600 seconds - save data for 1 year
 	maxDataSend: 300 // 300 seconds - send last 5 minute of data
 };
+const DEFAULT_SIZES = {
+	devices: 0
+};
 
 const dataDir = './data';
+const deletedDevicesDir = '/_deletedDevices';
 const saveDataTimer = process.env.SAVE_DATA_TIMER || 1000 * 60 * 5; // 5 min
 
 const data = {
@@ -57,12 +61,50 @@ const data = {
 
 		return {};
 
+	},
+	sizes() {
+		if (!fs.existsSync(dataDir))
+			fs.mkdirSync(dataDir);
+
+		if (!fs.existsSync(`${dataDir}/sizes.json`)) {
+			const sizes = DEFAULT_SIZES;
+			fs.writeFileSync(`${dataDir}/sizes.json`, JSON.stringify(sizes));
+			return sizes;
+		}
+
+		try {
+			const sizes = JSON.parse(fs.readFileSync(`${dataDir}/sizes.json`, 'utf8'));
+
+			return {...DEFAULT_SIZES, ...sizes};
+		} catch (e) {
+			console.log(e);
+		}
+
+		return {};
+
+	},
+	save() {
+		fs.writeFileSync(`${dataDir}/devices.json`, JSON.stringify(db.devices));
+		fs.writeFileSync(`${dataDir}/settings.json`, JSON.stringify(db.settings));
+		fs.writeFileSync(`${dataDir}/sizes.json`, JSON.stringify(db.sizes));
+	},
+	deleteDevice(deviceSocketId) {
+		if (!fs.existsSync(dataDir + deletedDevicesDir))
+			fs.mkdirSync(dataDir + deletedDevicesDir);
+
+		const device = db.devices[deviceSocketId];
+		if (device) {
+			fs.writeFileSync(`${dataDir + deletedDevicesDir}/device-${deviceSocketId}.json`, JSON.stringify(device))
+			delete db.devices[deviceSocketId];
+			this.save();
+		}
 	}
 };
 
 const db = {
 	settings: data.settings(),
 	devices: data.devices(),
+	sizes: data.sizes(),
 	get _devices() {
 		return Object.values(this.devices)
 			.map(device => ({
@@ -81,7 +123,7 @@ const db = {
 
 function createDevice(socketId) {
 	return {
-		id: Object.keys(db.devices).length + 1,
+		id: (db.sizes.devices++),
 		state: 'pending', // ban, pending, active
 		status: 'online', // online, offline
 		socketId,
@@ -129,6 +171,22 @@ app.prepare().then(() => {
 
 		socket.emit('devices', db.adminDevices);
 		socket.emit('settings', db.settings);
+
+		// device:get (deviceId) => device
+		socket.on('device:get', (deviceId) => {
+			console.log('device:get', deviceId);
+			const device = db.devices[deviceId];
+			if (device)
+				socket.emit('device:get', device);
+		})
+
+		// device:delete (deviceId) => void
+		socket.on('device:delete', (deviceSocketId) => {
+			console.log('device:delete', deviceSocketId);
+			data.deleteDevice(deviceSocketId);
+			userNS.emit('devices', db.userDevices);
+			adminNS.emit('devices', db.adminDevices);
+		})
 
 		socket.on('devices', () => {
 			console.log('get admin device list');
@@ -196,7 +254,7 @@ app.prepare().then(() => {
 			// console.log('data:add', dataValue);
 			let device = db.devices[socket.id];
 			if (!device) {
-				device = createDevice(socket.id)
+				device = createDevice(socket.id);
 				db.devices[socket.id] = device;
 				console.log("Device is connected", socket.id);
 				socket.join(`Device:${socket.id}`);
@@ -348,9 +406,7 @@ app.prepare().then(() => {
 		setInterval(() => {
 			console.log('Saving data');
 			// save data to file
-			fs.writeFileSync(`${dataDir}/devices.json`, JSON.stringify(db.devices), 'utf-8');
-			fs.writeFileSync(`${dataDir}/settings.json`, JSON.stringify(db.settings), 'utf-8');
-
+			data.save();
 			console.log('data has been saved');
 		}, saveDataTimer);
 	});

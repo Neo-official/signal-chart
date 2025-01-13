@@ -53,6 +53,7 @@ export type Settings = {
 
 export type DeviceType = {
 	id: string
+	socketId: string
 	state: 'ban' | 'pending' | 'active'
 	v_out: number
 	data: [number, number][]

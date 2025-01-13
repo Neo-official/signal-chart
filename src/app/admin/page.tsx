@@ -1,15 +1,138 @@
 "use client"
 import { useSocket } from "@/hooks/useSocket";
-import React, { useEffect, useRef, useState } from "react";
-import { Button, Card, CardBody, CardFooter, CardHeader, Input, Radio, RadioGroup } from "@nextui-org/react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Radio, RadioGroup, useDisclosure } from "@nextui-org/react";
 import { useRouter } from "next/navigation";
 import Login from "@/components/Login";
 import LineChart from "@/components/linechart";
 import { DeviceType, Settings } from "@/types";
+import * as XLSX from 'xlsx';
 
 const states = ['ban', 'pending', 'active'] as const
+const statesColors = {
+	'ban'    : 'danger',
+	'pending': 'warning',
+	'active' : 'success',
+} as const
 type DeviceProps = {
 	device: DeviceType
+}
+
+function exportCsv(device: DeviceType) {
+	const a = document.createElement('a');
+	// id,time,v_out,amp
+	// {i},{label},{data[0]},{data[1]}
+	const labels = ['id', 'time', 'v_out', 'amp'];
+	const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]].join(','));
+	const csvContent = [labels.join(','), ...data].join('\n');
+	a.href = `data:text/csv;charset=utf-8,${csvContent}`;
+	a.download = `device-${device.id}-${device.socketId}.csv`;
+	a.click();
+}
+
+function exportJson(device: DeviceType) {
+	const a = document.createElement('a');
+	const jsonContent = JSON.stringify(device);
+	a.href = `data:text/json;charset=utf-8,${jsonContent}`;
+	a.download = `device-${device.id}-${device.socketId}.json`;
+	a.click();
+}
+
+async function exportExcel(device: DeviceType) {
+	try {
+		// Create workbook
+		const wb = XLSX.utils.book_new();
+
+		const labels = ['id', 'time', 'v_out', 'amp'];
+		const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]]);
+
+		// Create data array
+		const excelData = [labels, ...data];
+
+		// Create worksheet
+		const ws = XLSX.utils.aoa_to_sheet(excelData);
+
+		// Add worksheet to workbook
+		XLSX.utils.book_append_sheet(wb, ws, 'Device Data');
+
+		// Generate Excel file
+		XLSX.writeFile(wb, `device_${device.id}_${device.socketId}.xlsx`);
+	}
+	catch (error) {
+		console.error('Error exporting Excel:', error);
+		throw new Error('Failed to export Excel file');
+	}
+}
+
+type ConfirmProps = {
+	onConfirm: () => void
+	onCancel: () => void
+	message: string
+	children: React.ReactNode
+}
+
+function Confirm({onConfirm, onCancel, message, children}: ConfirmProps) {
+	const {isOpen, onOpen, onOpenChange} = useDisclosure();
+
+	const handleConfirm = useCallback(() => {
+		onConfirm();
+		onCancel();
+	}, [onConfirm, onCancel]);
+
+	return (
+		<>
+			<Button
+				onPress={onOpen}
+				color="danger"
+				variant="flat"
+			>
+				{children}
+			</Button>
+
+			<Modal
+				isOpen={isOpen}
+				onOpenChange={onOpenChange}
+				closeButton
+			>
+				<ModalContent>
+					{(onClose) => (
+						<>
+							<ModalHeader className="flex flex-col gap-1">
+								Confirm
+							</ModalHeader>
+
+							<ModalBody>
+								<p>{message}</p>
+							</ModalBody>
+
+							<ModalFooter>
+								<Button
+									color="primary"
+									variant="light"
+									onPress={() => {
+										onClose();
+									}}
+								>
+									No
+								</Button>
+								<Button
+									color="danger"
+									variant="solid"
+									onPress={() => {
+										handleConfirm();
+										onClose();
+									}}
+									autoFocus
+								>
+									Yes
+								</Button>
+							</ModalFooter>
+						</>
+					)}
+				</ModalContent>
+			</Modal>
+		</>
+	);
 }
 
 function Device({device}: DeviceProps) {
@@ -33,23 +156,90 @@ function Device({device}: DeviceProps) {
 
 	return (
 		<Card className="border-none w-full h-auto col-span-12 sm:col-span-5">
-			<CardHeader className="justify-between">
-				<div className="flex gap-3">
+			<CardHeader className="justify-between flex-wrap">
+				<div className="flex gap-3 m-1 p-1">
 					<div className="flex flex-col gap-1 items-start justify-center">
 						<h4 className="text-large font-semibold leading-none text-default-600">Device: {device.id}</h4>
-						<h5 className="text-small tracking-tight text-default-400">{state}</h5>
+						<h5 className={`text-small tracking-tight ${state === 'active' ? 'text-success-500' : state === 'pending' ? 'text-warning-500' : 'text-danger-500'}`}>{state}</h5>
 					</div>
 				</div>
-				<RadioGroup
-					label="State"
-					size={"sm"}
-					orientation="horizontal"
-					defaultValue={state}
-					onValueChange={changeState}>
-					{states.map((s, key) => (
-						<Radio key={key} value={s}>{s}</Radio>
-					))}
-				</RadioGroup>
+				{/* action section (select state, export (csv, json, excel, delete modal*/}
+				<div className="flex flex-col gap-1 items-start justify-center border-1 border-default-300 p-4 m-1 rounded-lg relative">
+					<span className="absolute top-0 translate-y-[-50%] bg-content1 px-1">Actions</span>
+					<div className="flex gap-1 items-center justify-center">
+						{/*select state*/}
+						<ButtonGroup
+							variant="flat"
+							className="gap-1 border-1 border-default-300 p-1 px-3 rounded-lg"
+							aria-label="State selection"
+						>
+							State:
+							{states.map((stateOption) => (
+								<Button
+									key={stateOption}
+									color={statesColors[stateOption]}
+									variant={state === stateOption ? "flat" : "light"}
+									onPress={() => changeState(stateOption)}
+								>
+									{stateOption}
+								</Button>
+							))}
+						</ButtonGroup>
+						{/*export dropDown (Download as CSV,Download as Excel,Download as JSON)*/}
+						<Dropdown>
+							<DropdownTrigger>
+								<Button variant="flat" color="primary" className="capitalize">
+									Export
+								</Button>
+							</DropdownTrigger>
+							<DropdownMenu aria-label="Export Actions">
+								<DropdownItem key="csv" onPress={() => exportCsv(device)}>Download as CSV</DropdownItem>
+								<DropdownItem key="excel" onPress={() => exportExcel(device)}>Download as
+									Excel</DropdownItem>
+								<DropdownItem key="json" onPress={() => exportJson(device)}>Download as
+									JSON</DropdownItem>
+							</DropdownMenu>
+						</Dropdown>
+						{/*delete*/}
+						<Confirm
+							onConfirm={() => socket?.emit('device:delete', device.socketId as any)}
+							onCancel={() => console.log('Cancelled')}
+							message="Are you sure you want to delete this device?"
+						>
+							Delete
+						</Confirm>
+					</div>
+				</div>
+
+
+				{/*<div className="flex flex-col gap-1 items-start justify-center">*/}
+				{/*	<Button color="primary" onPress={() => exportCsv(device)}>*/}
+				{/*		Export CSV*/}
+				{/*	</Button>*/}
+				{/*</div>*/}
+
+
+				{/*	state select*/}
+				{/*<RadioGroup*/}
+				{/*	label="State"*/}
+				{/*	size={"sm"}*/}
+				{/*	orientation="horizontal"*/}
+				{/*	defaultValue={state}*/}
+				{/*	onValueChange={changeState}>*/}
+				{/*	{states.map((s, key) => (*/}
+				{/*		<Radio key={key} value={s} color={statesColors[s]}>*/}
+				{/*			<span className={state === s ? `text-${statesColors[s]}-500` : ''}>{s}</span>*/}
+				{/*		</Radio>*/}
+				{/*	))}*/}
+				{/*</RadioGroup>*/}
+				{/*/!*	delete button*!/*/}
+				{/*<div className="flex flex-col gap-1 items-start justify-center">*/}
+				{/*	<Button color="danger" onPress={() => {*/}
+				{/*		socket?.emit('device:delete', device.socketId as any);*/}
+				{/*	}}>*/}
+				{/*		Delete*/}
+				{/*	</Button>*/}
+				{/*</div>*/}
 			</CardHeader>
 			<CardBody className="overflow-visible p-3 py-4">
 				<div>

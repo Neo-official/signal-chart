@@ -7,6 +7,7 @@
     "dev:bun": "bun server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
+    "start:bun": "NODE_ENV=production bun server.js",
     "start:prod": "cross-env NODE_ENV=production node server.js",
     "lint": "next lint",
     "db:seed": "tsx ./src/db/seed.ts",
@@ -27,7 +28,7 @@
     "@nextui-org/link": "2.2.7",
     "@nextui-org/listbox": "2.3.9",
     "@nextui-org/navbar": "2.2.8",
-    "@nextui-org/react": "2.6.11",
+    "@nextui-org/react": "^2.6.11",
     "@nextui-org/snippet": "2.2.10",
     "@nextui-org/switch": "2.2.8",
     "@nextui-org/system": "2.4.6",
@@ -42,7 +43,7 @@
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.1",
     "drizzle-orm": "^0.38.3",
-    "framer-motion": "11.16.1",
+    "framer-motion": "^11.17.0",
     "intl-messageformat": "^10.5.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^15.1.4",
@@ -51,7 +52,8 @@
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^19.0.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
