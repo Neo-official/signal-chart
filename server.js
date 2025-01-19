@@ -2,7 +2,9 @@ const {createServer} = require('http');
 const {parse} = require('url');
 const next = require('next');
 const {Server} = require("socket.io");
+const {WebSocketServer} = require('ws');
 const fs = require('fs');
+const crypto = require("crypto");
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({dev});
@@ -94,7 +96,7 @@ const data = {
 
 		const device = db.devices[deviceSocketId];
 		if (device) {
-			fs.writeFileSync(`${dataDir + deletedDevicesDir}/device-${deviceSocketId}.json`, JSON.stringify(device))
+			fs.writeFileSync(`${dataDir + deletedDevicesDir}/device-${deviceSocketId}.json`, JSON.stringify(device));
 			delete db.devices[deviceSocketId];
 			this.save();
 		}
@@ -121,6 +123,30 @@ const db = {
 	}
 };
 
+// Helper functions
+function generateUniqueId() {
+	return crypto.randomBytes(16).toString('hex');
+}
+
+function parseMessage(message) {
+	try {
+		return JSON.parse(message);
+	} catch (error) {
+		console.error('Error parsing message:', error);
+		return {};
+	}
+}
+
+function sendJSON(ws, type, data) {
+	if (ws.readyState === WebSocket.OPEN) {
+		try {
+			ws.send(JSON.stringify({type, data}));
+		} catch (error) {
+			console.error('Error sending message:', error);
+		}
+	}
+}
+
 function createDevice(socketId) {
 	return {
 		id: (db.sizes.devices++),
@@ -136,16 +162,24 @@ function createDevice(socketId) {
 app.prepare().then(() => {
 	const server = createServer((req, res) => {
 		const parsedUrl = parse(req.url, true);
-		// noinspection JSIgnoredPromiseFromCall
 		handle(req, res, parsedUrl);
 	});
+	const wsServer = createServer();
+	// Socket.IO setup with namespaces
+	const io = new Server(server, {
+		path: '/socket.io'
+	});
 
-	const io = new Server(server);
-
-	// Create namespaces
+	// Create Socket.IO namespaces
 	const userNS = io.of('/user');
 	const adminNS = io.of('/admin');
-	const deviceNS = io.of('/device');
+
+	// WebSocket server for devices
+	const wss = new WebSocketServer({
+		server: wsServer
+		// path: '/device'
+	});
+
 
 	userNS.on('connection', (socket) => {
 		console.log('A user connected');
@@ -178,15 +212,17 @@ app.prepare().then(() => {
 			const device = db.devices[deviceId];
 			if (device)
 				socket.emit('device:get', device);
-		})
+		});
 
 		// device:delete (deviceId) => void
 		socket.on('device:delete', (deviceSocketId) => {
 			console.log('device:delete', deviceSocketId);
 			data.deleteDevice(deviceSocketId);
+			deviceConnections[deviceSocketId]?.close();
+			delete deviceConnections[deviceSocketId];
 			userNS.emit('devices', db.userDevices);
 			adminNS.emit('devices', db.adminDevices);
-		})
+		});
 
 		socket.on('devices', () => {
 			console.log('get admin device list');
@@ -197,7 +233,8 @@ app.prepare().then(() => {
 		socket.on('device:V-out', (device) => {
 			console.log('device:V-out', device.v_out);
 			db.devices[device.socketId].v_out = device.v_out;
-			deviceNS.to(device.socketId).emit('device:V-out', device.v_out);
+			// deviceNS.to(device.socketId).emit('device:V-out', device.v_out);
+			sendJSON(deviceConnections[device.socketId], 'device:V-out', device.v_out);
 		});
 
 		socket.on('device:state', (device) => {
@@ -230,178 +267,137 @@ app.prepare().then(() => {
 		});
 	});
 
-	deviceNS.on('connection', (socket) => {
-		console.log('A device connected');
-		if (!db.devices[socket.id]) {
-			db.devices[socket.id] = createDevice(socket.id);
-			console.log("Device is connected", socket.id);
-			socket.join(`Device:${socket.id}`);
-			socket.emit('device:V-out', db.devices[socket.id].v_out);
-			adminNS.emit('devices', db.adminDevices);
-		}
+	// deviceNS.on('connection', (socket) => {
+	// 	console.log('A device connected');
+	// 	if (!db.devices[socket.id]) {
+	// 		db.devices[socket.id] = createDevice(socket.id);
+	// 		console.log("Device is connected", socket.id);
+	// 		socket.join(`Device:${socket.id}`);
+	// 		socket.emit('device:V-out', db.devices[socket.id].v_out);
+	// 		adminNS.emit('devices', db.adminDevices);
+	// 	}
+	//
+	// 	// socket.on('_connect', (device) => {
+	// 	// 	console.log('device connected', device);
+	// 	// 	db.devices[device.socketId] = {
+	// 	// 		...device,
+	// 	// 		data: [],
+	// 	// 		labels: []
+	// 	// 	};
+	// 	// 	adminNS.emit('devices', db.adminDevices);
+	// 	// });
+	//
+	// 	socket.on('data:add', (dataValue) => {
+	// 		// console.log('data:add', dataValue);
+	// 		let device = db.devices[socket.id];
+	// 		if (!device) {
+	// 			device = createDevice(socket.id);
+	// 			db.devices[socket.id] = device;
+	// 			console.log("Device is connected", socket.id);
+	// 			socket.join(`Device:${socket.id}`);
+	// 			socket.emit('device:V-out', device.v_out);
+	//
+	// 			// io.emit('devices', db.devices);
+	// 		}
+	// 		adminNS.emit('devices', db.adminDevices);
+	//
+	// 		if (device.state !== 'active')
+	// 			return;
+	//
+	// 		const label = Date.now();
+	//
+	// 		device.data.push(dataValue);
+	// 		device.labels.push(label);
+	//
+	// 		if (db.settings.maxDataPoints < device.data.length)
+	// 			device.data.shift();
+	//
+	// 		if (db.settings.maxDataPoints < device.labels.length)
+	// 			device.labels.shift();
+	//
+	// 		userNS.emit('devices', db.userDevices);
+	// 	});
+	//
+	// 	socket.on('disconnect', () => {
+	// 		console.log('device disconnected');
+	// 		// delete db.devices[socket.id];
+	// 		if (db.devices[socket.id])
+	// 			db.devices[socket.id].status = 'offline';
+	// 		adminNS.emit('devices', db.adminDevices);
+	// 	});
+	// });
 
-		// socket.on('_connect', (device) => {
-		// 	console.log('device connected', device);
-		// 	db.devices[device.socketId] = {
-		// 		...device,
-		// 		data: [],
-		// 		labels: []
-		// 	};
-		// 	adminNS.emit('devices', db.adminDevices);
-		// });
+	// Store device WebSocket connections
+	const deviceConnections = {};
+	// WebSocket handlers for devices
+	wss.on('connection', (ws) => {
+		ws.id = generateUniqueId();
+		const deviceSocketId = ws.id;
+		console.log('Device connected via WebSocket: ', deviceSocketId);
 
-		socket.on('data:add', (dataValue) => {
-			// console.log('data:add', dataValue);
-			let device = db.devices[socket.id];
-			if (!device) {
-				device = createDevice(socket.id);
-				db.devices[socket.id] = device;
-				console.log("Device is connected", socket.id);
-				socket.join(`Device:${socket.id}`);
-				socket.emit('device:V-out', device.v_out);
+		// Store the WebSocket connection
+		deviceConnections[deviceSocketId] = ws;
 
-				// io.emit('devices', db.devices);
+		// Create new device
+		if (!db.devices[deviceSocketId])
+			db.devices[deviceSocketId] = createDevice(deviceSocketId);
+
+		db.devices[deviceSocketId].status = 'online';
+		adminNS.emit('devices', db.adminDevices);
+
+		ws.on('message', (message) => {
+			const {type, data} = parseMessage(message);
+
+			// console.log(message, type, data);
+			switch (type) {
+				case 'device:data:add':
+					let device = db.devices[deviceSocketId];
+					if (!device) {
+						device = createDevice(deviceSocketId);
+						db.devices[deviceSocketId] = device;
+						console.log("Device is connected", deviceSocketId);
+						sendJSON(ws, 'device:V-out', device.v_out);
+					}
+					adminNS.emit('devices', db.adminDevices);
+
+					if (device.state !== 'active') return;
+
+					const label = Date.now();
+					device.data.push(data);
+					device.labels.push(label);
+
+					if (device.data.length > db.settings.maxDataPoints) {
+						device.data = device.data.slice(-db.settings.maxDataPoints);
+						device.labels = device.labels.slice(-db.settings.maxDataPoints);
+					}
+
+					userNS.emit('devices', db.userDevices);
+					break;
 			}
+
+		});
+		ws.on('close', () => {
+			console.log('Device disconnected via WebSocket: ', deviceSocketId);
+			// Remove the WebSocket connection
+			delete deviceConnections[deviceSocketId];
+			if (db.devices[deviceSocketId])
+				db.devices[deviceSocketId].status = 'offline';
+
 			adminNS.emit('devices', db.adminDevices);
-
-			if (device.state !== 'active')
-				return;
-
-			const label = Date.now();
-
-			device.data.push(dataValue);
-			device.labels.push(label);
-
-			if (db.settings.maxDataPoints < device.data.length)
-				device.data.shift();
-
-			if (db.settings.maxDataPoints < device.labels.length)
-				device.labels.shift();
-
 			userNS.emit('devices', db.userDevices);
 		});
 
-		socket.on('disconnect', () => {
-			console.log('device disconnected');
-			// delete db.devices[socket.id];
-			if (db.devices[socket.id])
-				db.devices[socket.id].status = 'offline';
-			adminNS.emit('devices', db.adminDevices);
-		});
 	});
 
-	/*io.on('connection', (socket) => {
-		// const projects = await fetchProjects(socket);
-		//
-		// projects.forEach(project => socket.join("project:" + project.id));
-		//
-		// and then later
-		// io.to("project:4321").emit("project updated");
-		console.log('A user connected');
-
-		if (db.devices[socket.id]) {
-			console.log("Device is connected", socket.id);
-			socket.emit('scale:update', db.devices[socket.id].scale);
-		}
-
-		socket.emit('devices', db.userDevices);
-		socket.emit('admin:devices', db.adminDevices);
-		socket.emit('admin:settings', db.settings);
-
-		socket.on('_connect', (isAdmin = false) => {
-			console.log('User connected', isAdmin);
-			if (isAdmin) {
-				socket.emit('admin:devices', db.adminDevices);
-				socket.emit('admin:settings', db.settings);
-
-				socket.on('admin:devices', () => {
-					console.log('get admin device list');
-					socket.emit('admin:devices', db.adminDevices);
-					socket.emit('admin:settings', db.settings);
-				});
-
-				socket.on('device:scale', (device) => {
-					console.log('device:scale', device.scale);
-					db.devices[device.socketId].scale = device.scale;
-					io.emit('device:scale', device.scale);
-				});
-
-				socket.on('device:state', (device) => {
-					console.log('device:state', device.state);
-					db.devices[device.socketId].state = device.state;
-					io.emit('devices', db.userDevices);
-					io.emit('admin:devices', db.adminDevices);
-				});
-
-				socket.on('admin:settings', (settings) => {
-					console.log('admin:settings', settings);
-					db.settings.maxDataPoints = settings.maxDataPoints;
-					db.settings.maxDataSend = settings.maxDataSend;
-					io.emit('admin:settings', db.settings);
-
-					for (const device of Object.values(db.devices)) {
-						device.data = device.data.slice(-settings.maxDataPoints);
-						device.labels = device.labels.slice(-settings.maxDataPoints);
-					}
-				});
-
-			} else {
-				socket.emit('devices', db.userDevices);
-
-				socket.on('devices', () => {
-					console.log('get user device list');
-					socket.emit('devices', db.userDevices);
-				});
-			}
-		});
-
-		socket.on('disconnect', () => {
-			console.log('User disconnected');
-		});
-
-		socket.on('data:add', (dataValue) => {
-			// console.log('data:add', dataValue);
-			let device = db.devices[socket.id];
-			if (!device) {
-				device = {
-					state: 'pending', // ban, pending, active
-					id: Object.keys(db.devices).length + 1,
-					socketId: socket.id,
-					data: [],
-					labels: [],
-					scale: 100
-				};
-				db.devices[socket.id] = device;
-				console.log("Device is connected", socket.id);
-				socket.emit('scale:update', device.scale);
-
-				// io.emit('devices', db.devices);
-			}
-			io.emit('admin:devices', db.adminDevices);
-
-			if (device.state !== 'active')
-				return;
-
-			const label = Date.now();
-
-			device.data.push(dataValue);
-			device.labels.push(label);
-
-			if (db.settings.maxDataPoints < device.data.length)
-				device.data.shift();
-
-			if (db.settings.maxDataPoints < device.labels.length)
-				device.labels.shift();
-
-			io.emit('devices', db.userDevices);
-		});
-
-		// Add your Socket.IO event handlers here
-	});*/
-
-	server.listen(3000, (err) => {
+	// Start servers on different ports
+	wsServer.listen(3000, (err) => {
 		if (err) throw err;
-		console.log('> Ready on http://localhost:3000');
+		console.log('> WebSocket Server ready on ws://localhost:3000');
+	});
+
+	server.listen(8000, (err) => {
+		if (err) throw err;
+		console.log('> Next.js + Socket.IO Server ready on http://localhost:8000');
 		// save data every  5 minutes
 		setInterval(() => {
 			console.log('Saving data');

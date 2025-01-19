@@ -71,9 +71,9 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 			data: [{
 				type              : "splineArea",
 				color             : "#3698C5",
-				name              : 'V-out',
+				name              : 'Vo',
 				xValueFormatString: "MMM YYYY",
-				yValueFormatString: "### kV",
+				yValueFormatString: "### / kV",
 				dataPoints        : labels.map((label, index) => ({
 					x: new Date(label), // Assuming labels are date strings
 					y: data[index]?.[0],
@@ -98,9 +98,9 @@ const LineChart = ({title = "Real-time Chart", label = "Dataset", labels = [], d
 			data: [{
 				type              : "splineArea",
 				color             : "#c53657",
-				name              : 'Amp',
+				name              : 'Io',
 				xValueFormatString: "MMM YYYY",
-				yValueFormatString: "### mA",
+				yValueFormatString: "### / mA",
 				dataPoints        : labels.map((label, index) => ({
 					x: new Date(label), // Assuming labels are date strings
 					y: data[index]?.[1],

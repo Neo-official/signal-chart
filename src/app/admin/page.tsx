@@ -1,7 +1,7 @@
 "use client"
 import { useSocket } from "@/hooks/useSocket";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Radio, RadioGroup, useDisclosure } from "@nextui-org/react";
+import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/react";
 import { useRouter } from "next/navigation";
 import Login from "@/components/Login";
 import LineChart from "@/components/linechart";
@@ -22,7 +22,7 @@ function exportCsv(device: DeviceType) {
 	const a = document.createElement('a');
 	// id,time,v_out,amp
 	// {i},{label},{data[0]},{data[1]}
-	const labels = ['id', 'time', 'v_out', 'amp'];
+	const labels = ['id', 'time', 'Vo', 'Io'];
 	const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]].join(','));
 	const csvContent = [labels.join(','), ...data].join('\n');
 	a.href = `data:text/csv;charset=utf-8,${csvContent}`;
@@ -43,7 +43,7 @@ async function exportExcel(device: DeviceType) {
 		// Create workbook
 		const wb = XLSX.utils.book_new();
 
-		const labels = ['id', 'time', 'v_out', 'amp'];
+		const labels = ['id', 'time', 'Vo', 'Io'];
 		const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]]);
 
 		// Create data array
