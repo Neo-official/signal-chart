@@ -14,6 +14,7 @@ import { siteConfig } from "@/config/site";
 export default function Login() {
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
+	// noinspection JSUnusedLocalSymbols
 	const [isVisible, setIsVisible] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState('');
@@ -41,6 +42,7 @@ export default function Login() {
 			// Redirect to admin page
 			// router.push('/admin');
 			router.refresh()
+			window!.location!.reload()
 		}
 		catch (error) {
 			if (axios.isAxiosError(error))

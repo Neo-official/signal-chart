@@ -54,6 +54,7 @@ export type Settings = {
 export type DeviceType = {
 	id: string
 	socketId: string
+	status: 'online' | 'offline' | 'idle'
 	state: 'ban' | 'pending' | 'active'
 	v_out: number
 	data: [number, number][]

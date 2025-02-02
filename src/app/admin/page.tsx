@@ -7,6 +7,7 @@ import Login from "@/components/Login";
 import LineChart from "@/components/linechart";
 import { DeviceType, Settings } from "@/types";
 import * as XLSX from 'xlsx';
+import { checkTokenIsExpiredClient } from "@/lib/validators";
 
 const states = ['ban', 'pending', 'active'] as const
 const statesColors = {
@@ -135,6 +136,19 @@ function Confirm({onConfirm, onCancel, message, children}: ConfirmProps) {
 	);
 }
 
+// function statusColor(status: DeviceType['status']) {
+// 	switch (status) {
+// 		case 'online':
+// 			return 'text-success-500';
+// 		case 'idle':
+// 			return 'text-warning-500';
+// 		case "offline":
+// 			return 'text-danger-500';
+// 		default:
+// 			return 'text-default-500';
+// 	}
+// }
+
 function Device({device}: DeviceProps) {
 	const socket = useSocket('/admin');
 	const {v_out, state, data, labels} = device;
@@ -159,32 +173,43 @@ function Device({device}: DeviceProps) {
 			<CardHeader className="justify-between flex-wrap">
 				<div className="flex gap-3 m-1 p-1">
 					<div className="flex flex-col gap-1 items-start justify-center">
-						<h4 className="text-large font-semibold leading-none text-default-600">Device: {device.id}</h4>
-						<h5 className={`text-small tracking-tight ${state === 'active' ? 'text-success-500' : state === 'pending' ? 'text-warning-500' : 'text-danger-500'}`}>{state}</h5>
+						<h4 className="flex items-center text-large font-semibold leading-none text-default-600">
+							Device: {device.id}
+							{/*<span className={`ml-2 text-tiny flex items-center ${statusColor[device.state]}`}>*/}
+							{/*	<span*/}
+							{/*		className={`inline-block w-2 h-2 rounded-full mr-1 ${statusColor[device.state]}`}/>*/}
+							{/*	{device.status}*/}
+							{/*</span>*/}
+						</h4>
+						<h5 className={`text-small tracking-tight capitalize ${state === 'active' ? 'text-success-500' : state === 'pending' ? 'text-warning-500' : 'text-danger-500'}`}>{state}</h5>
 					</div>
 				</div>
 				{/* action section (select state, export (csv, json, excel, delete modal*/}
-				<div className="flex flex-col gap-1 items-start justify-center border-1 border-default-300 p-4 m-1 rounded-lg relative">
+				<div
+					className="flex flex-col gap-1 items-start justify-center border-1 border-default-300 p-4 m-1 rounded-lg relative">
 					<span className="absolute top-0 translate-y-[-50%] bg-content1 px-1">Actions</span>
-					<div className="flex gap-1 items-center justify-center">
+					<div className="flex gap-2 items-center justify-center">
 						{/*select state*/}
-						<ButtonGroup
-							variant="flat"
-							className="gap-1 border-1 border-default-300 p-1 px-3 rounded-lg"
-							aria-label="State selection"
-						>
-							State:
-							{states.map((stateOption) => (
-								<Button
-									key={stateOption}
-									color={statesColors[stateOption]}
-									variant={state === stateOption ? "flat" : "light"}
-									onPress={() => changeState(stateOption)}
-								>
-									{stateOption}
-								</Button>
-							))}
-						</ButtonGroup>
+						<div
+							className="flex items-center justify-center gap-0 border-1 border-default-300 p-1 px-3 rounded-lg">
+							<div className="pr-4">State:</div>
+							<ButtonGroup
+								variant="flat"
+								aria-label="State selection"
+							>
+								{states.map((stateOption) => (
+									<Button
+										key={stateOption}
+										className="capitalize"
+										color={statesColors[stateOption]}
+										variant={state === stateOption ? "flat" : "light"}
+										onPress={() => changeState(stateOption)}
+									>
+										{stateOption}
+									</Button>
+								))}
+							</ButtonGroup>
+						</div>
 						{/*export dropDown (Download as CSV,Download as Excel,Download as JSON)*/}
 						<Dropdown>
 							<DropdownTrigger>
@@ -211,35 +236,6 @@ function Device({device}: DeviceProps) {
 					</div>
 				</div>
 
-
-				{/*<div className="flex flex-col gap-1 items-start justify-center">*/}
-				{/*	<Button color="primary" onPress={() => exportCsv(device)}>*/}
-				{/*		Export CSV*/}
-				{/*	</Button>*/}
-				{/*</div>*/}
-
-
-				{/*	state select*/}
-				{/*<RadioGroup*/}
-				{/*	label="State"*/}
-				{/*	size={"sm"}*/}
-				{/*	orientation="horizontal"*/}
-				{/*	defaultValue={state}*/}
-				{/*	onValueChange={changeState}>*/}
-				{/*	{states.map((s, key) => (*/}
-				{/*		<Radio key={key} value={s} color={statesColors[s]}>*/}
-				{/*			<span className={state === s ? `text-${statesColors[s]}-500` : ''}>{s}</span>*/}
-				{/*		</Radio>*/}
-				{/*	))}*/}
-				{/*</RadioGroup>*/}
-				{/*/!*	delete button*!/*/}
-				{/*<div className="flex flex-col gap-1 items-start justify-center">*/}
-				{/*	<Button color="danger" onPress={() => {*/}
-				{/*		socket?.emit('device:delete', device.socketId as any);*/}
-				{/*	}}>*/}
-				{/*		Delete*/}
-				{/*	</Button>*/}
-				{/*</div>*/}
 			</CardHeader>
 			<CardBody className="overflow-visible p-3 py-4">
 				<div>
@@ -394,6 +390,7 @@ function Dashboard() {
 
 	return (
 		<div className="max-w-xl2 w-full">
+			<div className="text-xl mb-8 text-center">Admin Dashboard</div>
 			<Settings SettingsRef={SettingsRef} onSubmit={submitSettings}/>
 			<br/>
 			<div className="flex flex-col gap-4 justify-between items-center w-full">
@@ -413,14 +410,17 @@ function Dashboard() {
 
 export default function AdminPage() {
 	const router = useRouter();
-	// noinspection JSUnusedLocalSymbols
-	const [isAuthorized, setIsAuthorized] = useState(true);
+	const [isAuthorized, setIsAuthorized] = useState(false);
 
 	useEffect(() => {
-		// if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-		// 	const token = localStorage.getItem('authToken');
-		// 	setIsAuthorized(!!token)
-		// }
+		if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+			const token = localStorage!.getItem('authToken');
+			const check = checkTokenIsExpiredClient(token!, "");
+			setIsAuthorized(!check);
+		}
+		return () => {
+			setIsAuthorized(false);
+		};
 	}, [router]);
 
 	return (

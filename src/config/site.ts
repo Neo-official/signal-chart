@@ -1,7 +1,7 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-	name       : "Signal-chart",
+	name       : "Signal Chart",
 	description: "signal chart",
 	navItems   : [
 		{
@@ -12,10 +12,10 @@ export const siteConfig = {
 			label: "Admin",
 			href : "/admin",
 		},
-		{
-			label: "Router",
-			href : "/router",
-		},
+		// {
+		// 	label: "Router",
+		// 	href : "/router",
+		// },
 	],
 	ROUTE_URL: {
 		ADMIN: "/admin",

@@ -4,7 +4,7 @@ import {
 	NavbarContent,
 	NavbarBrand,
 	NavbarItem,
-	Link,
+	Link, Button,
 } from "@nextui-org/react";
 import NextLink from "next/link";
 import { link as linkStyles } from "@nextui-org/theme";
@@ -19,14 +19,16 @@ import { usePathname } from "next/navigation";
 
 export const Navbar = () => {
 	const pathname = usePathname();
+	const isAuthorized = !!localStorage!.getItem("authToken");
 	// console.log({pathname})
+	// noinspection HtmlUnknownTarget
 	return (
 		<NextUINavbar maxWidth="xl" position="sticky">
 			<NavbarContent justify="start">
 				<NavbarBrand as="li" className="gap-3 max-w-fit">
 					<NextLink className="flex justify-start items-center gap-1" href="/">
 						<Logo/>
-						<p className="font-bold text-inherit">Signal Chart</p>
+						<p className="font-bold text-inherit">{siteConfig.name}</p>
 					</NextLink>
 				</NavbarBrand>
 			</NavbarContent>
@@ -36,7 +38,7 @@ export const Navbar = () => {
 					<NavbarItem key={item.href} isActive={item.href === pathname}>
 						<Link
 							className={clsx(
-								linkStyles({color: "foreground"}),
+								item.href === pathname ? '' : linkStyles({color: "foreground"}),
 								"data-[active=true]:text-primary data-[active=true]:font-medium",
 							)}
 							// color="foreground"
@@ -50,6 +52,18 @@ export const Navbar = () => {
 			</NavbarContent>
 
 			<NavbarContent justify="end">
+				{/*logout button onPress = set remove token from localStorage*/}
+				{isAuthorized && (
+					<NavbarItem>
+						<Link href="/admin">
+							<Button color="danger" variant="light" onPress={() => {
+								localStorage!.removeItem("authToken");
+							}}>
+								Logout
+							</Button>
+						</Link>
+					</NavbarItem>
+				)}
 				<ThemeSwitch/>
 			</NavbarContent>
 		</NextUINavbar>

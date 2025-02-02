@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import { nextui } from "@nextui-org/theme";
+import { NextUIPluginConfig } from "@nextui-org/theme/dist/types";
 
 const config: Config = {
   content: [
@@ -23,34 +24,36 @@ const config: Config = {
   },
   darkMode: "class",
   plugins: [nextui({
+    defaultTheme: "light",
+    // defaultExtendTheme: "dark",
     themes: {
-      "purple-dark": {
+      "dark": {
         extend: "dark", // <- inherit default values from dark theme
         colors: {
-          background: "#0D001A",
-          foreground: "#ffffff",
+          background: "#1A1A2E", // رنگ پس‌زمینه تیره
+          foreground: "#EAEAEA", // رنگ متن روشن
           primary: {
-            50: "#3B096C",
-            100: "#520F83",
-            200: "#7318A2",
-            300: "#9823C2",
-            400: "#c031e2",
-            500: "#DD62ED",
-            600: "#F182F6",
-            700: "#FCADF9",
-            800: "#FDD5F9",
-            900: "#FEECFE",
-            DEFAULT: "#DD62ED",
-            foreground: "#ffffff",
+            50: "#BBDEFB", // رنگ‌های اصلی جدید
+            100: "#90CAF9",
+            200: "#64B5F6",
+            300: "#42A5F5",
+            400: "#2196F3",
+            500: "#1976D2",
+            600: "#1565C0",
+            700: "#0D47A1",
+            800: "#0B3D91",
+            900: "#0A2C6D",
+            DEFAULT: "#2196F3", // رنگ پیش‌فرض
+            foreground: "#EAEAEA", // رنگ متن
           },
-          focus: "#F182F6",
+          focus: "#64B5F6", // رنگ تمرکز
         },
         layout: {
-          disabledOpacity: "0.3",
+          disabledOpacity: "0.5",
           radius: {
-            small: "4px",
-            medium: "6px",
-            large: "8px",
+            small: "8px",
+            medium: "10px",
+            large: "12px",
           },
           borderWidth: {
             small: "1px",
@@ -59,7 +62,42 @@ const config: Config = {
           },
         },
       },
+      "light": {
+        extend: "light", // <- inherit default values from light theme
+        colors: {
+          background: "#E3F2FD", // رنگ پس‌زمینه روشن
+          foreground: "#0D1B2A", // رنگ متن تیره
+          primary: {
+            50: "#BBDEFB", // رنگ‌های اصلی جدید
+            100: "#90CAF9",
+            200: "#64B5F6",
+            300: "#42A5F5",
+            400: "#2196F3",
+            500: "#1976D2",
+            600: "#1565C0",
+            700: "#0D47A1",
+            800: "#0B3D91",
+            900: "#0A2C6D",
+            DEFAULT: "#2196F3", // رنگ پیش‌فرض
+            foreground: "#0D1B2A", // رنگ متن
+          },
+          focus: "#64B5F6", // رنگ تمرکز
+        },
+        layout: {
+          disabledOpacity: "0.5", // تغییر شفافیت
+          radius: {
+            small: "8px",
+            medium: "10px",
+            large: "12px",
+          },
+          borderWidth: {
+            small: "1px",
+            medium: "2px",
+            large: "3px",
+          },
+        },
+      }
     },
-  })],
+  } as NextUIPluginConfig)],
 };
 export default config;

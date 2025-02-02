@@ -20,7 +20,7 @@ const DEFAULT_SIZES = {
 
 const dataDir = './data';
 const deletedDevicesDir = '/_deletedDevices';
-const saveDataTimer = process.env.SAVE_DATA_TIMER || 1000 * 60 * 5; // 5 min
+const saveDataTimer = process.env.SAVE_DATA_TIMER || 1000 * 60; // 1 min
 
 const data = {
 	devices() {
@@ -34,9 +34,7 @@ const data = {
 		}
 
 		try {
-			const devices = JSON.parse(fs.readFileSync(`${dataDir}/devices.json`, 'utf8'));
-
-			return devices;
+			return JSON.parse(fs.readFileSync(`${dataDir}/devices.json`, 'utf8'));
 		} catch (e) {
 			console.log(e);
 		}
@@ -348,7 +346,7 @@ app.prepare().then(() => {
 		ws.on('message', (message) => {
 			const {type, data} = parseMessage(message);
 
-			// console.log(message, type, data);
+			// console.log(message, ({type, data}));
 			switch (type) {
 				case 'device:data:add':
 					let device = db.devices[deviceSocketId];

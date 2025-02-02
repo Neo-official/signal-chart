@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import { generateToken, getUserByUsername, verifyPassword } from '@/lib/auth';
+import { getUserByUsername } from '@/lib/auth';
 import { db } from '@/db';
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { generateToken, verifyPassword } from "@/lib/validators";
 
 export async function POST(request: Request) {
 	try {
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 		// console.log('User:', user)
 
 		if (!user) {
-			return NextResponse.json(
+			return Response.json(
 				{error: 'Invalid credentials'},
 				{status: 401},
 			);
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 		const isValid = await verifyPassword(password, user.password);
 
 		if (!isValid) {
-			return NextResponse.json(
+			return Response.json(
 				{error: 'Invalid credentials'},
 				{status: 401},
 			);
@@ -40,11 +40,11 @@ export async function POST(request: Request) {
 		.set({token})
 		.where(eq(users.id, user.id))
 
-		return NextResponse.json({token});
+		return Response.json({token});
 	}
 	catch (error) {
 		console.error('Login error:', error);
-		return NextResponse.json(
+		return Response.json(
 			{error: 'Internal server error'},
 			{status: 500},
 		);
