@@ -19,7 +19,8 @@ import { usePathname } from "next/navigation";
 
 export const Navbar = () => {
 	const pathname = usePathname();
-	const isAuthorized = !!localStorage!.getItem("authToken");
+	// const isAuthorized = !!localStorage?.getItem("authToken");
+	const isAuthorized = typeof window !== 'undefined' ? !!localStorage?.getItem("authToken") : false;
 	// console.log({pathname})
 	// noinspection HtmlUnknownTarget
 	return (
