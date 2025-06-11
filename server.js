@@ -12,7 +12,8 @@ const handle = app.getRequestHandler();
 
 const DEFAULT_SETTING = {
 	maxDataPoints: 31557600, // 31557600 seconds - save data for 1 year
-	maxDataSend: 300 // 300 seconds - send last 5 minute of data
+	maxDataSend: 300, // 300 seconds - send last 5 minute of data
+	isSingleDevice: true
 };
 const DEFAULT_SIZES = {
 	devices: 0
@@ -123,6 +124,8 @@ const db = {
 
 // Helper functions
 function generateUniqueId() {
+	if (db.settings.isSingleDevice)
+		return 'single-device';
 	return crypto.randomBytes(16).toString('hex');
 }
 
