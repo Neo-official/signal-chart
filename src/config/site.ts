@@ -12,19 +12,8 @@ export const siteConfig = {
 			label: "Admin",
 			href : "/admin",
 		},
-		// {
-		// 	label: "Router",
-		// 	href : "/router",
-		// },
 	],
-	ROUTE_URL: {
-		ADMIN: "/admin",
-		ROUTER: "/router",
-		HOME: "/"
-	},
 	API:{
-		LOGIN : "/api/login",
-		LOGOUT : "/api/logout",
-		USER : "/api/user"
+		LOGIN : "/api/login"
 	}
 };

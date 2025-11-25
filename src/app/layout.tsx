@@ -1,9 +1,11 @@
-import "@/styles/globals.css";
+import "./globals.css";
 import { Metadata, Viewport } from "next";
 import { Link } from "@nextui-org/link";
 import clsx from "clsx";
+import { Toaster } from "@/components/ui/sonner";
 
 import { Providers } from "./providers";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 import { siteConfig } from "@/config/site";
 import { fontSans } from "@/config/fonts";
@@ -45,11 +47,14 @@ export default function RootLayout({
 			)}
 		>
 		<Providers themeProps={{attribute: "class", defaultTheme: "dark"}}>
-			<div className="relative flex flex-col h-screen">
-				<Navbar/>
-				<main className="container mx-auto max-w-7xl pt-4 px-6 flex-grow">
-					{children}
-				</main>
+			<Toaster position="top-right" richColors closeButton duration={5000} theme="system" />
+			<ErrorBoundary>
+				<div className="relative flex flex-col min-h-screen">
+					<div className="bg-gradient-blur" />
+					<Navbar/>
+					<main className="container mx-auto max-w-7xl pt-4 px-6 flex-grow">
+						{children}
+					</main>
 				<footer className="w-full flex items-center justify-center py-3">
 					<Link
 						isExternal
@@ -61,7 +66,8 @@ export default function RootLayout({
 						<p className="text-primary">Me :)</p>
 					</Link>
 				</footer>
-			</div>
+				</div>
+			</ErrorBoundary>
 		</Providers>
 		</body>
 		</html>

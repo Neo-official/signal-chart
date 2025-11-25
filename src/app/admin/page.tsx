@@ -1,31 +1,50 @@
 "use client"
 import { useSocket } from "@/hooks/useSocket";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Button, ButtonGroup, Card, CardBody, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ChartComponent } from "@/components/chart-component";
 import Login from "@/components/Login";
-import LineChart from "@/components/linechart";
 import { DeviceType, Settings } from "@/types";
+import { client } from "@/lib/api-client";
+import { SocketMessage } from "@/types/socket";
+import { toast } from "sonner";
 import * as XLSX from 'xlsx';
 import { checkTokenIsExpiredClient } from "@/lib/validators";
+import { Download, Trash2, ChevronLeft, ChevronRight, Cpu, Settings as SettingsIcon, Filter, KeyRound, RefreshCw, Save, Ban, Clock, CheckCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const states = ['ban', 'pending', 'active'] as const
-const statesColors = {
-	'ban'    : 'danger',
-	'pending': 'warning',
-	'active' : 'success',
-} as const
-type DeviceProps = {
-	device: DeviceType
-}
+const states = ['ban', 'pending', 'active'] as const;
+const statesLabels = {
+	'ban'    : 'Banned',
+	'pending': 'Pending',
+	'active' : 'Active',
+} as const;
+const stateStyles = {
+	active : 'bg-green-500 text-white',
+	pending: 'bg-yellow-500 text-white',
+	ban    : 'bg-red-500 text-white',
+} as const;
+const statusStyles = {
+	online : 'bg-green-500 text-white',
+	idle   : 'bg-yellow-500 text-white',
+	offline: 'bg-gray-500 text-white',
+} as const;
+const statesIcons = {
+	'ban'    : <Ban className="w-4 h-4"/>,
+	'pending': <Clock className="w-4 h-4"/>,
+	'active' : <CheckCircle className="w-4 h-4"/>,
+} as const;
 
 function exportCsv(device: DeviceType) {
-	const a = document.createElement('a');
-	// id,time,v_out,amp
-	// {i},{label},{data[0]},{data[1]}
 	const labels = ['id', 'time', 'Vo', 'Io'];
 	const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]].join(','));
 	const csvContent = [labels.join(','), ...data].join('\n');
+	const a = document.createElement('a');
 	a.href = `data:text/csv;charset=utf-8,${csvContent}`;
 	a.download = `device-${device.id}-${device.socketId}.csv`;
 	a.click();
@@ -33,403 +52,650 @@ function exportCsv(device: DeviceType) {
 
 function exportJson(device: DeviceType) {
 	const a = document.createElement('a');
-	const jsonContent = JSON.stringify(device);
-	a.href = `data:text/json;charset=utf-8,${jsonContent}`;
+	a.href = `data:text/json;charset=utf-8,${JSON.stringify(device)}`;
 	a.download = `device-${device.id}-${device.socketId}.json`;
 	a.click();
 }
 
-async function exportExcel(device: DeviceType) {
-	try {
-		// Create workbook
-		const wb = XLSX.utils.book_new();
-
-		const labels = ['id', 'time', 'Vo', 'Io'];
-		const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]]);
-
-		// Create data array
-		const excelData = [labels, ...data];
-
-		// Create worksheet
-		const ws = XLSX.utils.aoa_to_sheet(excelData);
-
-		// Add worksheet to workbook
-		XLSX.utils.book_append_sheet(wb, ws, 'Device Data');
-
-		// Generate Excel file
-		XLSX.writeFile(wb, `device_${device.id}_${device.socketId}.xlsx`);
-	}
-	catch (error) {
-		console.error('Error exporting Excel:', error);
-		throw new Error('Failed to export Excel file');
-	}
+function exportExcel(device: DeviceType) {
+	const wb = XLSX.utils.book_new();
+	const labels = ['id', 'time', 'Vo', 'Io'];
+	const data = device.data.map((data, i) => [i, device.labels[i], data[0], data[1]]);
+	const ws = XLSX.utils.aoa_to_sheet([labels, ...data]);
+	XLSX.utils.book_append_sheet(wb, ws, 'Device Data');
+	XLSX.writeFile(wb, `device_${device.id}_${device.socketId}.xlsx`);
 }
 
-type ConfirmProps = {
-	onConfirm: () => void
-	onCancel: () => void
-	message: string
-	children: React.ReactNode
-}
+function Device({device}: { device: DeviceType }) {
+	const socket = useSocket('admin');
+	const [vOut, setVOut] = useState(device.v_out);
+	const [open, setOpen] = useState(false);
+	const [isExporting, setIsExporting] = useState(false);
 
-function Confirm({onConfirm, onCancel, message, children}: ConfirmProps) {
-	const {isOpen, onOpen, onOpenChange} = useDisclosure();
+	const changeState = (state: string) => {
+		socket?.emit('action', {
+			resource: 'device',
+			action  : 'update',
+			socketId: device.socketId,
+			key     : 'state',
+			value   : state,
+		} as any);
+		toast.success(`Device ${device.id} state changed to ${state}`);
+	};
 
-	const handleConfirm = useCallback(() => {
-		onConfirm();
-		onCancel();
-	}, [onConfirm, onCancel]);
+	const changeVOut = () => {
+		socket?.emit('action', {
+			resource: 'device',
+			action  : 'update',
+			socketId: device.socketId,
+			key     : 'vOut',
+			value   : vOut,
+		} as any);
+		toast.success(`Device ${device.id} V-out set to ${vOut}`);
+	};
+
+	const deleteDevice = () => {
+		socket?.emit('action', {resource: 'device', action: 'delete', socketId: device.socketId} as any);
+		toast.success(`Device ${device.id} deleted`);
+		setOpen(false);
+	};
+
 
 	return (
-		<>
-			<Button
-				onPress={onOpen}
-				color="danger"
-				variant="flat"
-			>
-				{children}
-			</Button>
-
-			<Modal
-				isOpen={isOpen}
-				onOpenChange={onOpenChange}
-				closeButton
-			>
-				<ModalContent>
-					{(onClose) => (
-						<>
-							<ModalHeader className="flex flex-col gap-1">
-								Confirm
-							</ModalHeader>
-
-							<ModalBody>
-								<p>{message}</p>
-							</ModalBody>
-
-							<ModalFooter>
+		<Card className="w-full">
+			<CardHeader className="pb-4">
+				<div className="flex justify-between items-start gap-4">
+					<div className="flex-1">
+						<div className="flex items-center gap-3 mb-2">
+							<CardTitle className="text-xl text-foreground">Device {device.id}</CardTitle>
+							<span
+								className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${stateStyles[device.state as keyof typeof stateStyles]}`}>
+								<span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+								{device.state}
+							</span>
+							<span
+								className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[device.status as keyof typeof statusStyles]}`}>
+								<span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+								{device.status}
+							</span>
+						</div>
+						<p className="text-sm text-muted-foreground">
+							Socket: <code
+							className="text-xs bg-muted px-1 py-0.5 rounded">{device.socketId}</code> • {device.data?.length || 0} data
+							points
+						</p>
+					</div>
+					<div className="flex items-center gap-2">
+						<ButtonGroup>
+							{states.map((state) => (
 								<Button
-									color="primary"
-									variant="light"
-									onPress={() => {
-										onClose();
-									}}
+									key={state}
+									size="sm"
+									variant={device.state === state ? "default" : "outline"}
+									onClick={() => changeState(state)}
+									className={`${device.state === state ? stateStyles[state] : ''} border-border`}
+									title={statesLabels[state as keyof typeof statesLabels]}
 								>
-									No
+									{statesIcons[state as keyof typeof statesIcons]}
+									{statesLabels[state as keyof typeof statesLabels]}
 								</Button>
-								<Button
-									color="danger"
-									variant="solid"
-									onPress={() => {
-										handleConfirm();
-										onClose();
-									}}
-									autoFocus
-								>
-									Yes
+							))}
+						</ButtonGroup>
+						<Dialog open={open} onOpenChange={setOpen}>
+							<DialogTrigger asChild>
+								<Button variant="destructive" size="sm" title="Delete device">
+									<Trash2 className="w-4 h-4"/>
 								</Button>
-							</ModalFooter>
-						</>
-					)}
-				</ModalContent>
-			</Modal>
-		</>
+							</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>Delete Device</DialogTitle>
+									<DialogDescription>
+										Are you sure you want to delete this device? This action cannot be undone.
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+									<Button variant="destructive" onClick={deleteDevice}>Delete</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent>
+				<ChartComponent title="Device Data" data={device.data} labels={device.labels}/>
+			</CardContent>
+			<CardFooter className="flex justify-between items-center">
+				<div className="flex items-center gap-3">
+					<Label htmlFor={`vout-${device.id}`} className="text-sm font-medium">V-out:</Label>
+					<Input
+						id={`vout-${device.id}`}
+						type="number"
+						value={vOut}
+						onChange={(e) => setVOut(Number(e.target.value))}
+						className="w-24"
+					/>
+					<Button onClick={changeVOut} size="sm">
+						<Save className="w-3.5 h-3.5 mr-1"/>
+						Apply
+					</Button>
+				</div>
+				<ButtonGroup>
+					<Button variant="outline" size="sm" onClick={() => {
+						setIsExporting(true);
+						exportCsv(device);
+						setTimeout(() => setIsExporting(false), 500);
+					}} disabled={isExporting}>
+						<Download className="w-4 h-4 mr-1"/> CSV
+					</Button>
+					<Button variant="outline" size="sm" onClick={() => {
+						setIsExporting(true);
+						exportExcel(device);
+						setTimeout(() => setIsExporting(false), 500);
+					}} disabled={isExporting}>
+						<Download className="w-4 h-4 mr-1"/> Excel
+					</Button>
+					<Button variant="outline" size="sm" onClick={() => {
+						setIsExporting(true);
+						exportJson(device);
+						setTimeout(() => setIsExporting(false), 500);
+					}} disabled={isExporting}>
+						<Download className="w-4 h-4 mr-1"/> JSON
+					</Button>
+				</ButtonGroup>
+			</CardFooter>
+		</Card>
 	);
 }
 
-// function statusColor(status: DeviceType['status']) {
-// 	switch (status) {
-// 		case 'online':
-// 			return 'text-success-500';
-// 		case 'idle':
-// 			return 'text-warning-500';
-// 		case "offline":
-// 			return 'text-danger-500';
-// 		default:
-// 			return 'text-default-500';
-// 	}
-// }
+function SettingsCard({settingsRef, onSubmit}: { settingsRef: React.RefObject<Settings>, onSubmit: () => void }) {
+	const [maxDataPoints, setMaxDataPoints] = useState(settingsRef.current?.maxDataPoints || 0);
+	const [maxDataSend, setMaxDataSend] = useState(settingsRef.current?.maxDataSend || 0);
+	const [onlineTimeout, setOnlineTimeout] = useState(settingsRef.current?.onlineTimeout || 10000);
+	const [idleTimeout, setIdleTimeout] = useState(settingsRef.current?.idleTimeout || 30000);
+	const [defaultTimeRange, setDefaultTimeRange] = useState(settingsRef.current?.defaultTimeRange || 300);
+	const [isSaving, setIsSaving] = useState(false);
 
-function Device({device}: DeviceProps) {
-	const socket = useSocket('/admin');
-	const {v_out, state, data, labels} = device;
-	const scaleRef = useRef<HTMLInputElement | null>(null);
-
-	function changeScale() {
-		const v_out = scaleRef.current?.valueAsNumber ?? 0;
-		device.v_out = v_out;
-		console.log("V-out: ", v_out);
-		socket?.emit('device:V-out', device as any);
-	}
-
-	function changeState(value: string) {
-		const state = value as typeof states[number];
-		device.state = state;
-		console.log("state: ", state);
-		socket?.emit('device:state', device as any);
-	}
+	const handleSubmit = () => {
+		setIsSaving(true);
+		if (settingsRef.current) {
+			settingsRef.current.maxDataPoints = maxDataPoints;
+			settingsRef.current.maxDataSend = maxDataSend;
+			settingsRef.current.onlineTimeout = onlineTimeout;
+			settingsRef.current.idleTimeout = idleTimeout;
+			settingsRef.current.defaultTimeRange = defaultTimeRange;
+		}
+		onSubmit();
+		toast.success('Settings updated successfully');
+		setTimeout(() => setIsSaving(false), 500);
+	};
 
 	return (
-		<Card className="border-none w-full h-auto col-span-12 sm:col-span-5">
-			<CardHeader className="justify-between flex-wrap">
-				<div className="flex gap-3 m-1 p-1">
-					<div className="flex flex-col gap-1 items-start justify-center">
-						<h4 className="flex items-center text-large font-semibold leading-none text-default-600">
-							Device: {device.id}
-							{/*<span className={`ml-2 text-tiny flex items-center ${statusColor[device.state]}`}>*/}
-							{/*	<span*/}
-							{/*		className={`inline-block w-2 h-2 rounded-full mr-1 ${statusColor[device.state]}`}/>*/}
-							{/*	{device.status}*/}
-							{/*</span>*/}
-						</h4>
-						<h5 className={`text-small tracking-tight capitalize ${state === 'active' ? 'text-success-500' : state === 'pending' ? 'text-warning-500' : 'text-danger-500'}`}>{state}</h5>
-					</div>
-				</div>
-				{/* action section (select state, export (csv, json, excel, delete modal*/}
-				<div
-					className="flex flex-col gap-1 items-start justify-center border-1 border-default-300 p-4 m-1 rounded-lg relative">
-					<span className="absolute top-0 translate-y-[-50%] bg-content1 px-1">Actions</span>
-					<div className="flex gap-2 items-center justify-center">
-						{/*select state*/}
-						<div
-							className="flex items-center justify-center gap-0 border-1 border-default-300 p-1 px-3 rounded-lg">
-							<div className="pr-4">State:</div>
-							<ButtonGroup
-								variant="flat"
-								aria-label="State selection"
-							>
-								{states.map((stateOption) => (
-									<Button
-										key={stateOption}
-										className="capitalize"
-										color={statesColors[stateOption]}
-										variant={state === stateOption ? "flat" : "light"}
-										onPress={() => changeState(stateOption)}
-									>
-										{stateOption}
-									</Button>
-								))}
-							</ButtonGroup>
+		<div className="space-y-6">
+			<Card className="border-border">
+				<CardHeader className="pb-3">
+					<CardTitle className="text-xl">Data Settings</CardTitle>
+					<p className="text-sm text-muted-foreground mt-1">Configure data storage and transmission limits</p>
+				</CardHeader>
+				<CardContent>
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label htmlFor="maxDataPoints" className="text-sm font-medium">Max Data Points</Label>
+							<Input
+								id="maxDataPoints"
+								type="number"
+								value={maxDataPoints}
+								onChange={(e) => setMaxDataPoints(Number(e.target.value))}
+							/>
+							<p className="text-xs text-muted-foreground">{maxDataPoints.toLocaleString()} points</p>
 						</div>
-						{/*export dropDown (Download as CSV,Download as Excel,Download as JSON)*/}
-						<Dropdown>
-							<DropdownTrigger>
-								<Button variant="flat" color="primary" className="capitalize">
-									Export
-								</Button>
-							</DropdownTrigger>
-							<DropdownMenu aria-label="Export Actions">
-								<DropdownItem key="csv" onPress={() => exportCsv(device)}>Download as CSV</DropdownItem>
-								<DropdownItem key="excel" onPress={() => exportExcel(device)}>Download as
-									Excel</DropdownItem>
-								<DropdownItem key="json" onPress={() => exportJson(device)}>Download as
-									JSON</DropdownItem>
-							</DropdownMenu>
-						</Dropdown>
-						{/*delete*/}
-						<Confirm
-							onConfirm={() => socket?.emit('device:delete', device.socketId as any)}
-							onCancel={() => console.log('Cancelled')}
-							message="Are you sure you want to delete this device?"
-						>
-							Delete
-						</Confirm>
+						<div className="space-y-2">
+							<Label htmlFor="maxDataSend" className="text-sm font-medium">Max Data Send</Label>
+							<Input
+								id="maxDataSend"
+								type="number"
+								value={maxDataSend}
+								onChange={(e) => setMaxDataSend(Number(e.target.value))}
+							/>
+							<p className="text-xs text-muted-foreground">{maxDataSend.toLocaleString()} points</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="defaultTimeRange" className="text-sm font-medium">Default Time Range</Label>
+							<Input
+								id="defaultTimeRange"
+								type="number"
+								value={defaultTimeRange}
+								onChange={(e) => setDefaultTimeRange(Number(e.target.value))}
+							/>
+							<p className="text-xs text-muted-foreground">{defaultTimeRange}s</p>
+						</div>
 					</div>
-				</div>
+				</CardContent>
+			</Card>
 
-			</CardHeader>
-			<CardBody className="overflow-visible p-3 py-4">
-				<div>
-					<LineChart
-						title={"Chart"}
-						label={"dataset: " + device.id}
-						labels={labels.map(t => new Date(t).toISOString())}
-						data={data}
-						// backgroundColor="rgb(255, 99, 132)"
-						// borderColor="rgb(255, 99, 132)"
-						// borderWidth={1}
-						// fill={false}
-					/>
-				</div>
-			</CardBody>
-			<CardFooter
-				className="justify-between before:bg-white/10 border-white/20 border-1 overflow-hidden py-4 before:rounded-xl rounded-large w-[calc(100%_-_8px)] shadow-small ml-1">
-				<Input
-					ref={scaleRef}
-					type="number"
-					label="V-out"
-					defaultValue={`${v_out}`}
-					endContent={
-						<Button color="primary" onPress={changeScale}>
-							Change
-						</Button>
-					}
-				/>
-			</CardFooter>
-		</Card>
-	)
-}
-
-type PropSettings = {
-	SettingsRef: React.RefObject<Settings>
-	onSubmit: () => void
-}
-
-function Settings({SettingsRef, onSubmit}: PropSettings) {
-	const [update, setUpdate] = useState(false);
-
-	function changeMaxDataPoints(event: React.ChangeEvent<HTMLInputElement>) {
-		let maxDataPoints = Number(event.target.value ?? 0);
-		maxDataPoints = Math.max(0, Math.min(maxDataPoints, 2 ** 32 - 1));
-		SettingsRef.current.maxDataPoints = maxDataPoints;
-		// if (maxDataPointsRef.current)
-		// 	maxDataPointsRef.current.value = maxDataPoints as string;
-	}
-
-	function changeMaxDataSend(event: React.ChangeEvent<HTMLInputElement>) {
-		let maxDataSend = Number(event.target.value ?? 0);
-		maxDataSend = Math.max(0, Math.min(maxDataSend, 2 ** 32 - 1));
-		SettingsRef.current.maxDataSend = maxDataSend;
-		// if (maxDataSendRef.current)
-		// 	maxDataSendRef.current.value = maxDataSend as string;
-	}
-
-	useEffect(() => {
-
-	}, [update])
-
-	return (
-		<Card className="border-none w-full h-auto col-span-12 sm:col-span-5">
-			<CardHeader className="justify-between">
-				<div className="flex gap-3">
-					<div className="flex flex-col gap-1 items-start justify-center">
-						<h4 className="text-large font-semibold leading-none text-default-600">Settings</h4>
+			<Card className="border-border">
+				<CardHeader className="pb-3">
+					<CardTitle className="text-xl">Device Status Timeouts</CardTitle>
+					<p className="text-sm text-muted-foreground mt-1">Configure when devices transition between online,
+						idle, and offline states</p>
+				</CardHeader>
+				<CardContent>
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label htmlFor="onlineTimeout" className="text-sm font-medium">Online Timeout</Label>
+							<Input
+								id="onlineTimeout"
+								type="number"
+								value={onlineTimeout}
+								onChange={(e) => setOnlineTimeout(Number(e.target.value))}
+							/>
+							<p className="text-xs text-muted-foreground">Device becomes idle after {onlineTimeout}ms of
+								inactivity</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="idleTimeout" className="text-sm font-medium">Idle Timeout</Label>
+							<Input
+								id="idleTimeout"
+								type="number"
+								value={idleTimeout}
+								onChange={(e) => setIdleTimeout(Number(e.target.value))}
+							/>
+							<p className="text-xs text-muted-foreground">Device becomes offline after {idleTimeout}ms of
+								inactivity</p>
+						</div>
 					</div>
-				</div>
-			</CardHeader>
-			<CardBody className="overflow-visible p-3 py-4">
-				<div>
-					<Input
-						type="number"
-						min={0}
-						max={4294967295}
-						label={`Max Data Storage (${SettingsRef.current.maxDataPoints} bytes)`}
-						placeholder={`current is (${SettingsRef.current.maxDataPoints})`}
-						description="Maximum Value is 4294967295 (4 GB) for each Device"
-						onChange={changeMaxDataPoints}
-					/>
-					<Input
-						type="number"
-						min={0}
-						label={`Max Data Length (${SettingsRef.current.maxDataSend} points)`}
-						placeholder={`current is (${SettingsRef.current.maxDataSend})`}
-						description="0 = Receive all of data, default = 300 (5 minutes)"
-						onChange={changeMaxDataSend}
-					/>
-				</div>
-			</CardBody>
-			<CardFooter
-				className="justify-between before:bg-white/10 border-white/20 border-1 overflow-hidden py-4 before:rounded-xl rounded-large w-[calc(100%_-_8px)] shadow-small ml-1">
-				<Button color="primary" onPress={() => {
-					setUpdate(!update);
-					onSubmit?.();
-				}}>Apply Settings</Button>
-			</CardFooter>
-		</Card>
-	)
+				</CardContent>
+			</Card>
+
+			<div className="flex justify-end">
+				<Button onClick={handleSubmit} size="lg" disabled={isSaving}>
+					<Save className="w-4 h-4 mr-2"/>
+					{isSaving ? 'Saving...' : 'Apply All Settings'}
+				</Button>
+			</div>
+		</div>
+	);
 }
 
 function Dashboard() {
-	const socket = useSocket('/admin');
-	const [mounted, setMounted] = useState<boolean>(false)
+	const socket = useSocket('admin');
 	const [devices, setDevices] = useState<DeviceType[]>([]);
-	const SettingsRef = useRef<Settings>({maxDataPoints: 0, maxDataSend: 0});
+	const [currentPage, setCurrentPage] = useState(1);
+	const [devicesPerPage, setDevicesPerPage] = useState(5);
+	const [activeTab, setActiveTab] = useState<'devices' | 'settings' | 'account'>('devices');
+	const [filterState, setFilterState] = useState<string>('all');
+	const [filterStatus, setFilterStatus] = useState<string>('all');
+	const [isLoading, setIsLoading] = useState(true);
+	const settingsRef = useRef<Settings>({maxDataPoints: 0, maxDataSend: 0});
 
-	// const settings = SettingsRef.current;
+	const filteredDevices = devices.filter(d => {
+		const stateMatch = filterState === 'all' || d.state === filterState;
+		const statusMatch = filterStatus === 'all' || d.status === filterStatus;
+		return stateMatch && statusMatch;
+	});
 
-	function submitSettings() {
-		socket?.emit('settings', SettingsRef.current as any);
-	}
+	const totalPages = devicesPerPage === -1 ? 1 : Math.ceil(filteredDevices.length / devicesPerPage);
+	const startIndex = (currentPage - 1) * devicesPerPage;
+	const paginatedDevices = devicesPerPage === -1 ? filteredDevices : filteredDevices.slice(startIndex, startIndex + devicesPerPage);
 
-
+	// Fetch initial data from REST API
 	useEffect(() => {
-		setMounted(() => true)
-		if (!(socket && mounted)) return;
+		Promise.all([
+			client.devices.getAll(),
+			client.settings.get(),
+		]).then(([devices, settings]) => {
+			setDevices(devices);
+			settingsRef.current = settings;
+		}).catch(console.error)
+		.finally(() => setIsLoading(false));
+	}, []);
 
-		socket.emit('_connect');
+	// Listen for real-time updates via Socket.IO
+	useEffect(() => {
+		if (!socket) return;
 
-		socket.on('settings', (data) => {
-			console.log('admin:settings:', data);
-			// setDevices(Object.values(data?.devices ?? {}));
-			SettingsRef.current = data;
-			// if (maxDataPointsRef.current)
-			// 	maxDataPointsRef.current.value = data.maxDataPoints;
-			// console.log(maxDataPointsRef.current, SettingsRef.current.maxDataPoints)
-			//
-			// if (maxDataSendRef.current)
-			// 	maxDataSendRef.current.value = data.maxDataSend;
+		socket.on('action', (msg: SocketMessage) => {
+			switch (msg.resource) {
+				case 'device':
+					switch (msg.action) {
+						case 'create':
+							setDevices(prev => {
+								const exists = prev.find(d => d.socketId === msg.value?.socketId);
+								if (!exists) {
+									toast.info(`Device ${msg.value?.id} connected`);
+								}
+								return exists ? prev : [...prev, msg.value];
+							});
+							break;
 
-		});
+						case 'update':
+							if (msg.key === 'data') {
+								setDevices(prev => prev.map(d =>
+									d.socketId === msg.socketId
+										? {
+											...d,
+											data  : [...d.data, [msg.value[0], msg.value[1]]],
+											labels: [...d.labels, new Date(msg.value[2]).toLocaleTimeString()],
+										}
+										: d,
+								));
+							}
+							else if (msg.key === 'state') {
+								setDevices(prev => prev.map(d => d.socketId === msg.socketId ? {
+									...d,
+									state: msg.value,
+								} : d));
+							}
+							else if (msg.key === 'status') {
+								const device = devices.find(d => d.socketId === msg.socketId);
+								if (device && device.status !== msg.value) {
+									toast.info(`Device ${device.id} is now ${msg.value}`);
+								}
+								setDevices(prev => prev.map(d => d.socketId === msg.socketId ? {
+									...d,
+									status: msg.value,
+								} : d));
+							}
+							break;
 
-		socket.on('devices', (data) => {
-			// console.log('admin:devices:', data);
-			setDevices(data);
+						case 'delete':
+							const deletedDevice = devices.find(d => d.socketId === msg.socketId);
+							if (deletedDevice) {
+								toast.info(`Device ${deletedDevice.id} removed`);
+							}
+							setDevices(prev => prev.filter(d => d.socketId !== msg.socketId));
+							break;
+					}
+					break;
+
+				case 'settings':
+					if (msg.action === 'update') {
+						settingsRef.current = msg.value;
+					}
+					break;
+			}
 		});
 
 		return () => {
-			socket.off('settings');
-			socket.off('devices');
+			socket.off('action');
 		};
-	}, [socket, mounted])
-
-	if (!mounted)
-		return (
-			<div className="flex justify-center items-center h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-			</div>
-		);
+	}, [socket]);
 
 	return (
-		<div className="max-w-xl2 w-full">
-			<div className="text-xl mb-8 text-center">Admin Dashboard</div>
-			<Settings SettingsRef={SettingsRef} onSubmit={submitSettings}/>
-			<br/>
-			<div className="flex flex-col gap-4 justify-between items-center w-full">
-				<div className="flex justify-between items-center w-full">
-					<span className="text-large">Devices</span>
-					<Button color="primary" onPress={() => socket?.emit('admin:devices')}>
-						Refresh
+		<div className="w-full max-w-7xl mx-auto space-y-6">
+			<div className="space-y-1">
+				<h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+				<p className="text-muted-foreground">Monitor and manage all connected devices</p>
+			</div>
+			<div className="flex justify-between items-center border-b">
+				<div className="flex gap-2">
+					<Button
+						variant={activeTab === 'devices' ? 'default' : 'ghost'}
+						onClick={() => setActiveTab('devices')}
+						className="rounded-b-none"
+					>
+						<Cpu className="w-4 h-4 mr-2"/>
+						Devices
+					</Button>
+					<Button
+						variant={activeTab === 'settings' ? 'default' : 'ghost'}
+						onClick={() => setActiveTab('settings')}
+						className="rounded-b-none"
+					>
+						<SettingsIcon className="w-4 h-4 mr-2"/>
+						Settings
+					</Button>
+					<Button
+						variant={activeTab === 'account' ? 'default' : 'ghost'}
+						onClick={() => setActiveTab('account')}
+						className="rounded-b-none"
+					>
+						<KeyRound className="w-4 h-4 mr-2"/>
+						Account
 					</Button>
 				</div>
-				{devices.map((device, index) => (
-					<Device device={device} key={index}/>
-				))}
+
 			</div>
+			{activeTab === 'settings' && (
+				<SettingsCard settingsRef={settingsRef} onSubmit={() => socket?.emit('action', {
+					resource: 'settings',
+					action  : 'update',
+					value   : settingsRef.current,
+				} as any)}/>
+			)}
+			{activeTab === 'account' && (
+				<Card className="border-border">
+					<CardHeader className="pb-3">
+						<CardTitle className="text-xl">Account Settings</CardTitle>
+						<p className="text-sm text-muted-foreground mt-1">Update your username and password</p>
+					</CardHeader>
+					<CardContent className="space-y-6">
+						<div className="space-y-4">
+							<h3 className="text-lg font-semibold">Change Username</h3>
+							<div className="space-y-2">
+								<Label htmlFor="newUsername">New Username</Label>
+								<Input id="newUsername" placeholder="Enter new username"/>
+							</div>
+							<Button>Update Username</Button>
+						</div>
+						<div className="border-t pt-6 space-y-4">
+							<h3 className="text-lg font-semibold">Change Password</h3>
+							<div className="space-y-2">
+								<Label htmlFor="currentPassword">Current Password</Label>
+								<Input id="currentPassword" type="password" placeholder="Enter current password"/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="newPassword">New Password</Label>
+								<Input id="newPassword" type="password" placeholder="Enter new password"/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="confirmPassword">Confirm Password</Label>
+								<Input id="confirmPassword" type="password" placeholder="Confirm new password"/>
+							</div>
+							<Button>Update Password</Button>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+			{activeTab === 'devices' && (
+				<>
+					<div className="space-y-4 pt-4">
+						<div className="flex justify-between items-center">
+							<div>
+								<h2 className="text-2xl font-bold">Devices</h2>
+								<p className="text-sm text-muted-foreground">{filteredDevices.length} of {devices.length} device{devices.length !== 1 ? 's' : ''}</p>
+							</div>
+							<div className="flex items-center gap-2">
+								<Select value={devicesPerPage.toString()} onValueChange={(v) => {
+									setDevicesPerPage(Number(v));
+									setCurrentPage(1);
+								}}>
+									<SelectTrigger className="w-[120px]">
+										<SelectValue/>
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="5">5 per page</SelectItem>
+										<SelectItem value="10">10 per page</SelectItem>
+										<SelectItem value="15">15 per page</SelectItem>
+										<SelectItem value="25">25 per page</SelectItem>
+										<SelectItem value="50">50 per page</SelectItem>
+										<SelectItem value="-1">All</SelectItem>
+									</SelectContent>
+								</Select>
+								<Button onClick={() => window.location.reload()} variant="outline">
+									<RefreshCw className="w-4 h-4 mr-2"/>
+									Refresh
+								</Button>
+							</div>
+						</div>
+						<div className="flex items-center gap-2">
+							<Filter className="w-4 h-4 text-muted-foreground"/>
+							<Select value={filterState} onValueChange={(v) => {
+								setFilterState(v);
+								setCurrentPage(1);
+							}}>
+								<SelectTrigger className="w-[140px]">
+									<SelectValue placeholder="State"/>
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All States</SelectItem>
+									<SelectItem value="active">Active</SelectItem>
+									<SelectItem value="pending">Pending</SelectItem>
+									<SelectItem value="ban">Banned</SelectItem>
+								</SelectContent>
+							</Select>
+							<Select value={filterStatus} onValueChange={(v) => {
+								setFilterStatus(v);
+								setCurrentPage(1);
+							}}>
+								<SelectTrigger className="w-[140px]">
+									<SelectValue placeholder="Status"/>
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Status</SelectItem>
+									<SelectItem value="online">Online</SelectItem>
+									<SelectItem value="idle">Idle</SelectItem>
+									<SelectItem value="offline">Offline</SelectItem>
+								</SelectContent>
+							</Select>
+							{(filterState !== 'all' || filterStatus !== 'all') && (
+								<Button variant="ghost" size="sm" onClick={() => {
+									setFilterState('all');
+									setFilterStatus('all');
+									setCurrentPage(1);
+								}} title="Clear all filters">
+									Clear Filters
+								</Button>
+							)}
+						</div>
+					</div>
+					<div className="space-y-4">
+						{isLoading ? (
+							<Card>
+								<CardContent className="flex items-center justify-center py-16">
+									<RefreshCw className="w-8 h-8 animate-spin text-primary"/>
+								</CardContent>
+							</Card>
+						) : devices.length === 0 ? (
+							<Card className="border-dashed border-2">
+								<CardContent className="flex flex-col items-center justify-center py-16">
+									<div className="rounded-full bg-muted p-4 mb-4">
+										<svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor"
+											 viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+												  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+										</svg>
+									</div>
+									<h3 className="text-lg font-semibold mb-1">No Devices Found</h3>
+									<p className="text-muted-foreground text-center text-sm">
+										Devices will appear here once they connect to the system.
+									</p>
+								</CardContent>
+							</Card>
+						) : (
+							<>
+								{paginatedDevices.map((device) => (
+									<Device key={device.socketId || device.id} device={device}/>
+								))}
+								{devicesPerPage !== -1 && filteredDevices.length > 0 && (
+									<div className="flex justify-center items-center gap-1 pt-4">
+										<Button
+											variant="outline"
+											size="icon"
+											onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+											disabled={currentPage === 1}
+										>
+											<ChevronLeft className="w-4 h-4"/>
+										</Button>
+										{totalPages <= 7 ? (
+											Array.from({length: totalPages}, (_, i) => i + 1).map(page => (
+												<Button
+													key={page}
+													variant={currentPage === page ? 'default' : 'outline'}
+													size="icon"
+													onClick={() => setCurrentPage(page)}
+												>
+													{page}
+												</Button>
+											))
+										) : (
+											<>
+												<Button
+													variant={currentPage === 1 ? 'default' : 'outline'}
+													size="icon"
+													onClick={() => setCurrentPage(1)}
+												>
+													1
+												</Button>
+												{currentPage > 3 && <span className="px-2">...</span>}
+												{currentPage > 2 && currentPage < totalPages - 1 && (
+													<>
+														{currentPage - 1 > 1 && (
+															<Button variant="outline" size="icon"
+																	onClick={() => setCurrentPage(currentPage - 1)}>
+																{currentPage - 1}
+															</Button>
+														)}
+														<Button variant="default" size="icon">
+															{currentPage}
+														</Button>
+														{currentPage + 1 < totalPages && (
+															<Button variant="outline" size="icon"
+																	onClick={() => setCurrentPage(currentPage + 1)}>
+																{currentPage + 1}
+															</Button>
+														)}
+													</>
+												)}
+												{currentPage === 2 && (
+													<Button variant="default" size="icon">
+														2
+													</Button>
+												)}
+												{currentPage < totalPages - 2 && <span className="px-2">...</span>}
+												<Button
+													variant={currentPage === totalPages ? 'default' : 'outline'}
+													size="icon"
+													onClick={() => setCurrentPage(totalPages)}
+												>
+													{totalPages}
+												</Button>
+											</>
+										)}
+										<Button
+											variant="outline"
+											size="icon"
+											onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+											disabled={currentPage === totalPages}
+										>
+											<ChevronRight className="w-4 h-4"/>
+										</Button>
+									</div>
+								)}
+							</>
+						)}
+					</div>
+				</>
+			)}
 		</div>
-	)
+	);
 }
 
 export default function AdminPage() {
-	const router = useRouter();
 	const [isAuthorized, setIsAuthorized] = useState(false);
 
 	useEffect(() => {
-		if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-			const token = localStorage!.getItem('authToken');
+		if (typeof window !== 'undefined') {
+			const token = localStorage.getItem('authToken');
 			const check = checkTokenIsExpiredClient(token!, "");
 			setIsAuthorized(!check);
 		}
-		return () => {
-			setIsAuthorized(false);
-		};
-	}, [router]);
+	}, []);
 
 	return (
-		<>
-			<section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-				{isAuthorized ?
-					<Dashboard/> :
-					<Login/>}
-			</section>
-		</>
+		<section className="flex flex-col items-center justify-center gap-4 py-8">
+			{isAuthorized ? <Dashboard/> : <Login/>}
+		</section>
 	);
 }

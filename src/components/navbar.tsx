@@ -1,72 +1,63 @@
 "use client"
-import {
-	Navbar as NextUINavbar,
-	NavbarContent,
-	NavbarBrand,
-	NavbarItem,
-	Link, Button,
-} from "@nextui-org/react";
 import NextLink from "next/link";
-import { link as linkStyles } from "@nextui-org/theme";
 import clsx from "clsx";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { LogOut } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
-import {
-	Logo,
-} from "@/components/icons";
-import { usePathname } from "next/navigation";
+import { Logo } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 
 export const Navbar = () => {
 	const pathname = usePathname();
-	// const isAuthorized = !!localStorage?.getItem("authToken");
-	const isAuthorized = typeof window !== 'undefined' ? !!localStorage?.getItem("authToken") : false;
-	// console.log({pathname})
-	// noinspection HtmlUnknownTarget
+	const [isAuthorized, setIsAuthorized] = useState(false);
+	
+	useEffect(() => {
+		setIsAuthorized(!!localStorage?.getItem("authToken"));
+	}, []);
+
+	const handleLogout = () => {
+		localStorage.removeItem("authToken");
+		window.location.href = "/admin";
+	};
+
 	return (
-		<NextUINavbar maxWidth="xl" position="sticky">
-			<NavbarContent justify="start">
-				<NavbarBrand as="li" className="gap-3 max-w-fit">
-					<NextLink className="flex justify-start items-center gap-1" href="/">
+		<nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+			<div className="container flex h-16 items-center justify-between">
+				<div className="flex items-center gap-6">
+					<NextLink className="flex items-center gap-2" href="/">
 						<Logo/>
-						<p className="font-bold text-inherit">{siteConfig.name}</p>
+						<span className="font-bold text-lg">{siteConfig.name}</span>
 					</NextLink>
-				</NavbarBrand>
-			</NavbarContent>
-
-			<NavbarContent className="gap-4" justify="center">
-				{siteConfig.navItems.map((item) => (
-					<NavbarItem key={item.href} isActive={item.href === pathname}>
-						<Link
-							className={clsx(
-								item.href === pathname ? '' : linkStyles({color: "foreground"}),
-								"data-[active=true]:text-primary data-[active=true]:font-medium",
-							)}
-							// color="foreground"
-							aria-current={item.href === pathname ? "page" : undefined}
-							href={item.href}
-						>
-							{item.label}
-						</Link>
-					</NavbarItem>
-				))}
-			</NavbarContent>
-
-			<NavbarContent justify="end">
-				{/*logout button onPress = set remove token from localStorage*/}
-				{isAuthorized && (
-					<NavbarItem>
-						<Link href="/admin">
-							<Button color="danger" variant="light" onPress={() => {
-								localStorage!.removeItem("authToken");
-							}}>
-								Logout
-							</Button>
-						</Link>
-					</NavbarItem>
-				)}
-				<ThemeSwitch/>
-			</NavbarContent>
-		</NextUINavbar>
+					<nav className="hidden md:flex items-center gap-6">
+						{siteConfig.navItems.map((item) => (
+							<NextLink
+								key={item.href}
+								href={item.href}
+								className={clsx(
+									"text-sm font-medium transition-colors hover:text-primary",
+									pathname === item.href
+										? "text-foreground"
+										: "text-muted-foreground"
+								)}
+							>
+								{item.label}
+							</NextLink>
+						))}
+					</nav>
+				</div>
+				<div className="flex items-center gap-2">
+					{isAuthorized && (
+						<Button variant="ghost" size="sm" onClick={handleLogout}>
+							<LogOut className="w-4 h-4 mr-2" />
+							Logout
+						</Button>
+					)}
+					<ThemeSwitch/>
+				</div>
+			</div>
+		</nav>
 	);
 };

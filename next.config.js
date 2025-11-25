@@ -4,9 +4,6 @@ const nextConfig = {
 	// output: 'export',
 	// distDir: 'out',
 	reactStrictMode: true,
-	eslint: {
-		ignoreDuringBuilds: true
-	},
 	typescript: {
 		ignoreBuildErrors: true
 	},
