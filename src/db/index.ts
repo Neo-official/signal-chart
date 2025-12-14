@@ -1,12 +1,10 @@
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import Database from 'better-sqlite3';
 import * as schema from './schema';
 import path from 'path';
 
 const dbFile = process.env.DATABASE_URL || 'sqlite.db';
 const dbPath = path.resolve(process.cwd(), dbFile);
-const client = createClient({
-	url: `file:${dbPath}`
-});
 
-export const db = drizzle(client as any, { schema } as any);
+const sqlite = new Database(dbPath);
+export const db = drizzle(sqlite, {schema});

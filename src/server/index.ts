@@ -11,6 +11,8 @@ import { SocketMessage } from '@/types/socket';
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
+const ws_port = process.env.WS_PORT || 3000;
+const server_port = process.env.SERVER_PORT || 8000;
 
 const deviceConnections = new Map<string, WebSocket>();
 let io: Server;
@@ -197,6 +199,6 @@ app.prepare().then(async () => {
 
 	wss.on('connection', handleDeviceConnection);
 
-	wsServer.listen(3000, () => console.log('> WebSocket ready on ws://localhost:3000'));
-	server.listen(8000, () => console.log('> Server ready on http://localhost:8000'));
+	wsServer.listen(ws_port, () => console.log('> WebSocket ready on ws://localhost:' + ws_port));
+	server.listen(server_port, () => console.log('> Server ready on http://localhost:' + server_port));
 });
